@@ -47,6 +47,4 @@ out/
 *.iml
 
 .env
-application.properties
-application.yml
 
