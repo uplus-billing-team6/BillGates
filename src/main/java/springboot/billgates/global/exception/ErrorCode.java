@@ -11,8 +11,13 @@ public enum ErrorCode {
     USER_EMAIL_NOT_FOUND(HttpStatus.NOT_FOUND, "회원 이메일을 찾을 수 없습니다."),
     USER_DELETED(HttpStatus.FORBIDDEN, "탈퇴한 회원입니다."),
     EMAIL_DUPLICATED(HttpStatus.CONFLICT, "중복된 이메일입니다"),
-    NICKNAME_DUPLICATED(HttpStatus.CONFLICT, "중복된 닉네임입니다");
+    NICKNAME_DUPLICATED(HttpStatus.CONFLICT, "중복된 닉네임입니다"),
 
+    // 암호화 관련
+    ENCRYPTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR ,"데이터 암호화 처리 중 오류가 발생했습니다."),
+    DECRYPTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "데이터 복호화 처리 중 오류가 발생했습니다."),
+
+    ;
     private final HttpStatus status;
     private final String message;
 }
