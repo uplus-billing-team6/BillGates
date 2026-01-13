@@ -18,8 +18,8 @@ public class AsyncConfig {
      * 3. 큐까지 꽉 차면, maxPoolSize(5개)까지 스레드를 늘려서 처리
      * 4. 그것조차 넘치면 예외(RejectedExecutionException)가 발생
      */
-    @Bean(name = "taskExecutor")
-    public Executor taskExecutor() {
+    @Bean(name = "dummyDataExecutor")
+    public Executor dummyDataExecutor() {
         return new ThreadPoolTaskExecutorBuilder()
             .corePoolSize(2)       // 기본 실행 대기 스레드 수 (평상시 유지)
             .maxPoolSize(5)        // 동시 동작 가능한 최대 스레드 수 (트래픽 폭주 시)
