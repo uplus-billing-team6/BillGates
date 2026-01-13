@@ -1,7 +1,12 @@
-package springboot.billgates.batch.billing; 
+package springboot.billgates.batch.billing;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+
+import javax.sql.DataSource;
+
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -19,13 +24,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.ArgumentPreparedStatementSetter;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.transaction.PlatformTransactionManager;
-import springboot.billgates.domain.billing.Billing;
 
-import javax.sql.DataSource;
-import java.sql.Timestamp;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.YearMonth;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import springboot.billgates.domain.billing.Billing;
 
 @Slf4j
 @Configuration
@@ -35,7 +37,7 @@ public class BillingJobConfig {
     private final JobRepository jobRepository;
     private final PlatformTransactionManager transactionManager;
     private final DataSource dataSource;
-
+    
     private static final int CHUNK_SIZE = 1000;
 
     @Bean
@@ -52,27 +54,34 @@ public class BillingJobConfig {
                 .reader(billingReader(null))
                 .processor(billingProcessor(null))
                 .writer(billingWriter())
-                .faultTolerant()
+                .faultTolerant() // 오류 발생 시 배치 전체가 죽지 않도록 안전장치
                 .build();
     }
+
 
     @Bean
     @StepScope
     public JdbcCursorItemReader<BillingItemDto> billingReader(
             @Value("#{jobParameters['billingMonth']}") String billingMonth) {
         
+        // 파라미터가 없으면 기본값 "2026-01"
         String targetMonth = (billingMonth != null) ? billingMonth : "2026-01";
+        
+        // 날짜 계산 (예: 2026-01-01 ~ 2026-02-01)
         YearMonth yearMonth = YearMonth.parse(targetMonth);
         LocalDate startDate = yearMonth.atDay(1);
         LocalDate endDate = yearMonth.plusMonths(1).atDay(1);
 
-        // 팀원 스키마(MEMBER, USAGE_HISTORY)에 맞춘 최신 SQL
+        // [SQL 설명]
+        // 1. MEMBER 테이블을 기준으로 (LEFT JOIN)
+        // 2. USAGE_HISTORY 테이블에서 해당 기간(usage_date)의 내역을 가져옴
+        // 3. 변경된 DB에 amount 컬럼이 있으므로 바로 SUM(u.amount) 수행
         String sql = "SELECT " +
                      "  m.member_id AS memberId, " +
                      "  m.name, " +
                      "  m.phone_number AS phoneNumber, " +
                      "  m.email, " +
-                     "  COALESCE(SUM(u.amount), 0) AS sumAmount " + // ★ 핵심: 합계 계산
+                     "  COALESCE(SUM(u.amount), 0) AS sumAmount " + 
                      "FROM MEMBER m " +
                      "LEFT JOIN USAGE_HISTORY u " +
                      "  ON m.member_id = u.member_id " +
@@ -100,21 +109,23 @@ public class BillingJobConfig {
         return item -> {
             String targetMonth = (billingMonth != null) ? billingMonth : "2026-01";
             
-            // ★ 수정됨: 계산 로직 없이 DTO 값을 바로 넣음
+            // 변경된 DB(CHAR 7)에 맞춰 targetMonth 문자열을 그대로 넣음
             return Billing.builder()
                     .memberId(item.getMemberId())
-                    .billingMonth(targetMonth)
-                    .totalAmount(item.getSumAmount()) // sumAmount 사용
+                    .billingMonth(targetMonth) 
+                    .totalAmount(item.getSumAmount())
                     .createdAt(LocalDateTime.now())
                     .build();
         };
     }
 
+
     @Bean
     public JdbcBatchItemWriter<Billing> billingWriter() {
         return new JdbcBatchItemWriterBuilder<Billing>()
                 .dataSource(dataSource)
-                // ★ Upsert 적용 (ON DUPLICATE KEY UPDATE)
+                // DB 컬럼명: member_id, billing_month, total_amount, created_at
+                // Entity 필드명: memberId, billingMonth, totalAmount, createdAt
                 .sql("INSERT INTO BILLING (member_id, billing_month, total_amount, created_at) " +
                      "VALUES (:memberId, :billingMonth, :totalAmount, :createdAt) " +
                      "ON DUPLICATE KEY UPDATE " + 

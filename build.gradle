@@ -25,8 +25,12 @@ repositories {
 }
 
 dependencies {
+<<<<<<< HEAD
    // implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
    	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+=======
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+>>>>>>> origin/develop
     implementation 'org.springframework.boot:spring-boot-starter-batch'
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
