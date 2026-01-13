@@ -5,7 +5,15 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "MESSAGE")
+@Table(
+        name = "MESSAGE",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_billing_channel",
+                        columnNames = {"billing_id", "channel"}
+                )
+        }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
