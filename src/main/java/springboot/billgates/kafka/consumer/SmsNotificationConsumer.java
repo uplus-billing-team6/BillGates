@@ -11,7 +11,8 @@ public class SmsNotificationConsumer {
 
     @KafkaListener(
         topics = "notification-sms",
-        groupId = "notification-sms-group"
+        groupId = "notification-sms-group",
+        concurrency = "12"
     )
     public void consume(NotificationEvent event) {
 

@@ -11,7 +11,8 @@ public class EmailNotificationConsumer {
 
     @KafkaListener(
         topics = "notification-email",
-        groupId = "notification-email-group"
+        groupId = "notification-email-group",
+        concurrency = "12"
     )
     public void consume(NotificationEvent event) {
 
