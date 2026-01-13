@@ -37,6 +37,7 @@ public class BillingJobConfig {
     private final JobRepository jobRepository;
     private final PlatformTransactionManager transactionManager;
     private final DataSource dataSource;
+    private final JobLockListener jobLockListener;
     
     private static final int CHUNK_SIZE = 1000;
 
@@ -44,6 +45,7 @@ public class BillingJobConfig {
     public Job billingJob() {
         return new JobBuilder("billingJob", jobRepository)
                 .start(billingStep())
+                .listener(jobLockListener)
                 .build();
     }
 
