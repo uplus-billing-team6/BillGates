@@ -13,9 +13,6 @@ import lombok.Setter;
 @Builder
 public class BillingItemDto {
     private Long memberId;
-    private String name;
-    private String phoneNumber; // phone -> phoneNumber 변경
-    private String email;
     private Long sumAmount;     
 }
 

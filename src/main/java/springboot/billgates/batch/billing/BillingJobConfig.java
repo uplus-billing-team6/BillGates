@@ -37,6 +37,7 @@ public class BillingJobConfig {
     private final JobRepository jobRepository;
     private final PlatformTransactionManager transactionManager;
     private final DataSource dataSource;
+    private final JobLockListener jobLockListener;
     
     private static final int CHUNK_SIZE = 1000;
 
@@ -44,6 +45,7 @@ public class BillingJobConfig {
     public Job billingJob() {
         return new JobBuilder("billingJob", jobRepository)
                 .start(billingStep())
+               // .listener(jobLockListener)
                 .build();
     }
 
@@ -64,29 +66,19 @@ public class BillingJobConfig {
     public JdbcCursorItemReader<BillingItemDto> billingReader(
             @Value("#{jobParameters['billingMonth']}") String billingMonth) {
         
-        // 파라미터가 없으면 기본값 "2026-01"
-        String targetMonth = (billingMonth != null) ? billingMonth : "2026-01";
+    	if (billingMonth == null || billingMonth.isBlank()) {
+            throw new IllegalArgumentException("billingMonth JobParameter is required. ex) 2026-01");
+        }
         
         // 날짜 계산 (예: 2026-01-01 ~ 2026-02-01)
-        YearMonth yearMonth = YearMonth.parse(targetMonth);
+        YearMonth yearMonth = YearMonth.parse(billingMonth);
         LocalDate startDate = yearMonth.atDay(1);
         LocalDate endDate = yearMonth.plusMonths(1).atDay(1);
 
-        // [SQL 설명]
-        // 1. MEMBER 테이블을 기준으로 (LEFT JOIN)
-        // 2. USAGE_HISTORY 테이블에서 해당 기간(usage_date)의 내역을 가져옴
-        // 3. 변경된 DB에 amount 컬럼이 있으므로 바로 SUM(u.amount) 수행
-        String sql = "SELECT " +
-                     "  m.member_id AS memberId, " +
-                     "  m.name, " +
-                     "  m.phone_number AS phoneNumber, " +
-                     "  m.email, " +
-                     "  COALESCE(SUM(u.amount), 0) AS sumAmount " + 
-                     "FROM MEMBER m " +
-                     "LEFT JOIN USAGE_HISTORY u " +
-                     "  ON m.member_id = u.member_id " +
-                     "  AND u.usage_date >= ? AND u.usage_date < ? " +
-                     "GROUP BY m.member_id";
+        String sql = "SELECT member_id AS memberId, COALESCE(SUM(amount), 0) AS sumAmount " +
+                "FROM USAGE_HISTORY " +
+                "WHERE usage_date >= ? AND usage_date < ? " +
+                "GROUP BY member_id";
 
         return new JdbcCursorItemReaderBuilder<BillingItemDto>()
                 .name("billingReader")
