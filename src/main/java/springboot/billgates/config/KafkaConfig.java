@@ -8,12 +8,6 @@ import org.springframework.kafka.config.TopicBuilder;
 @Configuration
 public class KafkaConfig {
 
-    /**
-     * 이메일 발송용 Topic
-     * - 이메일 알림 메시지를 전송하는 Topic
-     * - Partition: 3개 (병렬 처리)
-     * - Replication: 1 (개발 환경)
-     */
     @Bean
     public NewTopic emailTopic() {
         return TopicBuilder.name("notification-email")
@@ -22,12 +16,6 @@ public class KafkaConfig {
                 .build();
     }
 
-    /**
-     * SMS 발송용 Topic
-     * - SMS 알림 메시지를 전송하는 Topic
-     * - Partition: 3개 (병렬 처리)
-     * - Replication: 1 (개발 환경)
-     */
     @Bean
     public NewTopic smsTopic() {
         return TopicBuilder.name("notification-sms")
