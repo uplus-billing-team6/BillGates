@@ -1,4 +1,4 @@
-package springboot.billgates.dto;
+package springboot.billgates.kafka.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
