@@ -3,6 +3,8 @@ package springboot.billgates.batch.billing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
@@ -12,9 +14,13 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcCursorItemReader;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
+import org.springframework.batch.item.support.SynchronizedItemStreamReader;
+import org.springframework.batch.item.support.builder.SynchronizedItemStreamReaderBuilder;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.task.ThreadPoolTaskExecutorBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -30,6 +36,7 @@ import springboot.billgates.domain.member.Member;
 import javax.sql.DataSource;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -50,6 +57,15 @@ public class BillingJobConfig {
     private static final int CHUNK_SIZE = 1000;
 
     @Bean
+    public TaskExecutor executor() {
+        return new ThreadPoolTaskExecutorBuilder()
+            .corePoolSize(10)
+            .maxPoolSize(10)
+            .threadNamePrefix("batch-thread-")
+            .build();
+    }
+
+    @Bean
     public Job billingJob() {
         return new JobBuilder("billingJob", jobRepository)
             .start(billingStep())
@@ -65,6 +81,7 @@ public class BillingJobConfig {
             .processor(billingProcessor(null))
             .writer(billingCompositeWriter())
             .faultTolerant() // 오류 발생 시 배치 전체가 죽지 않도록 안전장치
+            .taskExecutor(executor()) // 병렬처리
             .build();
     }
 
@@ -74,13 +91,17 @@ public class BillingJobConfig {
      */
     @Bean
     @StepScope
-    public JdbcCursorItemReader<Member> billingReader() {
-        return new JdbcCursorItemReaderBuilder<Member>()
+    public SynchronizedItemStreamReader<Member> billingReader() {
+        JdbcCursorItemReader<Member> reader = new JdbcCursorItemReaderBuilder<Member>()
             .name("billingReader")
             .dataSource(dataSource)
             .sql(BillingSqls.SELECT_MEMBERS)
             .rowMapper(new BeanPropertyRowMapper<>(Member.class))
             .fetchSize(CHUNK_SIZE)
+            .build();
+
+        return new SynchronizedItemStreamReaderBuilder<Member>()
+            .delegate(reader)
             .build();
     }
 
@@ -114,6 +135,9 @@ public class BillingJobConfig {
             // 3. total amount 계산
             long totalAmount = items.stream().mapToLong(BillingItem::getAmount).sum();
 
+            // 추가. total amount 가 0 이면, 이 사람은 해당 월에 낼 돈이 없음 -> billing 저장할 필요가 없다
+            if (totalAmount == 0) return null;
+
             // 4. Billing 엔티티 생성
             Billing billing = Billing.builder()
                                      .memberId(member.getMemberId())
@@ -136,6 +160,9 @@ public class BillingJobConfig {
     @Bean
     public ItemWriter<BillingPack> billingCompositeWriter() {
         return chunk -> {
+            log.info(">>> [Writer] Saving Chunk... (Size: {} items)", chunk.getItems().size());
+            long startTime = System.currentTimeMillis();
+
             for (BillingPack pack : chunk) {
                 // 1. Billing 테이블 저장
                 KeyHolder keyHolder = new GeneratedKeyHolder();
@@ -163,6 +190,10 @@ public class BillingJobConfig {
                     jdbcTemplate.batchUpdate(BillingSqls.INSERT_BILLING_ITEM, batchArgs);
                 }
             }
+
+            long endTime = System.currentTimeMillis();
+            // [Log 4] 저장 완료 로그
+            log.info(">>> [Writer] Saved Complete. (Time taken: {}ms)", (endTime - startTime));
         };
     }
 }
