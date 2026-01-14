@@ -68,20 +68,29 @@
 #### 성능 최적화
 
 - **복합 인덱스** (`member_id`, `usage_date`)를 활용하여 조회 성능을 향상시킵니다.
-- 카테고리별 합계를 미리 계산하여 청구서 조회 속도를 개선합니다.
+- 병렬 처리 (Multi-threading): `ThreadPoolTaskExecutor`를 활용하여 10개의 스레드가 동시에 청구서를 생성합니다.
+- 스레드 안정성 확보: `SynchronizedItemStreamReader`를 적용하여 병렬 환경에서도 데이터 누락이나 중복 없이 안전하게 읽어옵니다.
+- 조회 성능 개선: `USAGE_HISTORY` 테이블에 복합 인덱스(`member_id`, `usage_date`)를 적용하여 Processor 단계의 조회 속도를 최적화했습니다.
 
 #### 처리 흐름
 
 ```
-USAGE_HISTORY (500만 건)
+MEMBER (100만 명 / Cursor Read)
     ↓
-Spring Batch (정산 계산)
+[Parallel Processing - 10 Threads]
+Spring Batch (사용 내역 조회 및 합산)
     ↓
-BILLING (100만 건)
-    ↓
-MESSAGE 생성 (100만 건)
+[Chunk Size: 1000]
+BILLING & BILLING_ITEM 저장
 ```
+#### 운영 및 장애 대응
+- 수동 실행 API: `/api/batch/billing/run`을 통해 특정 월의 정산을 즉시 실행할 수 있습니다.
+- 복구 로직: 서버 비정상 종료로 인해 비치가 `STARTED` 상태로 멈춘 경우, `force=true` 옵션을 통해 좀비 프로세스를 정리하고 즉시 재시작할 수 있습니다. 
 
+#### 🚀 고도화 계획 (To-Be)
+- 분산 락 (Distributed Lock): 다중 서버 환경에서의 중복 실행 방지를 위해 Redis 도입 예정.
+- 멱등성 쿼리 (Idempotency): 재실행 시 데이터 중복 에러를 방지하고 덮어쓰기가 가능하도록 ON DUPLICATE KEY UPDATE 쿼리 적용 예정.
+  
 ---
 
 ### 2. Kafka 기반 청구 메시지 전송 시스템
