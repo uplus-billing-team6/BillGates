@@ -524,6 +524,6 @@ curl http://localhost:8080/api/test/stats
 - [ ] 성능 테스트 자동화
 - [ ] AWS 인프라 구축
 
-##  라이센스
+---
 
 Team Billgates | LG U+ URECA 백엔드 개발자 과정 3기 종합프로젝트 6조
