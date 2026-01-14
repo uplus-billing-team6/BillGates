@@ -3,11 +3,10 @@ package springboot.billgates.domain.billing.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobParametersBuilder;
-import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
+import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
@@ -16,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import springboot.billgates.domain.billing.dto.BillingBatchRequest;
+import springboot.billgates.domain.billing.service.BatchService;
 import springboot.billgates.global.Response;
 
 import java.util.HashMap;
@@ -27,54 +27,55 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BatchController {
 
-    private final JobLauncher jobLauncher;
-    private final Job billingJob;
+    private final BatchService billingBatchService;
 
     @PostMapping("/run")
     public ResponseEntity<Response<Map<String, Object>>> runBatch(
         @Valid @RequestBody BillingBatchRequest request,
         BindingResult bindingResult
     ) {
-        // 1. [400 Bad Request] 입력값 검증 실패
+        // Validation Error
         if (bindingResult.hasErrors()) {
-            String errorMsg = bindingResult.getFieldError().getDefaultMessage();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                                 .body(Response.fail(errorMsg));
+            return ResponseEntity.badRequest()
+                                 .body(Response.fail(bindingResult.getFieldError().getDefaultMessage()));
         }
 
         try {
-            // 2. Job Parameter 생성
-            JobParametersBuilder paramsBuilder = new JobParametersBuilder()
-                .addString("billingMonth", request.getBillingMonth());
+            // Service 호출
+            JobExecution execution = billingBatchService.runBillingJob(
+                request.getBillingMonth(),
+                request.isForce()
+            );
 
-            // force가 true일 때만 'requestTime' 파라미터를 추가하여 새로운 JobInstance 생성 (재실행 허용)
-            if (request.isForce()) {
-                paramsBuilder.addLong("requestTime", System.currentTimeMillis());
-            }
-
-            // 3. 배치 실행
-            // force=false인데 이미 완료된 기록이 있다면, 여기서 JobInstanceAlreadyCompleteException 발생
-            JobExecution execution = jobLauncher.run(billingJob, paramsBuilder.toJobParameters());
-
-            // 4. [200 OK] 성공 응답
+            // 성공 응답 생성
             Map<String, Object> data = new HashMap<>();
             data.put("billingMonth", request.getBillingMonth());
             data.put("jobExecutionId", execution.getId());
             data.put("status", execution.getStatus().toString());
 
-            return ResponseEntity.ok(
-                Response.success("billing batch started", data)
-            );
+            return ResponseEntity.ok(Response.success("Batch Started", data));
+
+        } catch (IllegalStateException e) {
+            // 이미 실행중인 job 을 또 실행하려는 경우 (단, force=false). 중복 batch 방지 (409 Conflict)
+            log.error("Batch Execution Error", e);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                                 .body(Response.fail("현재 배치가 실행 중입니다. 재실행 하려면 force=true 옵션을 사용하세요."));
 
         } catch (JobInstanceAlreadyCompleteException e) {
-            // 이미 완료된 배치를 force=false로 실행하려 할 때 발생
-            // 500 처리하되 메시지로 안내
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                 .body(Response.fail("이미 완료된 배치입니다. (재실행 하려면 force=true 필요)"));
+            // 이미 완료된 Job 처리 (409 Conflict)
+            log.error("Batch Execution Error", e);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                                 .body(Response.fail("이미 완료된 배치입니다."));
+
+        } catch (JobExecutionAlreadyRunningException | JobRestartException e) {
+            // batch 도중 실패한 job 이고, force=false 일때
+            log.error("Batch Execution Error", e);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                                 .body(Response.fail("이전 실패 기록이 존재합니다. 처음부터 다시 실행하려면 force=true 옵션을 사용하세요."));
 
         } catch (Exception e) {
-            log.error("Batch Run Error", e);
-            // 5. [500 Internal Server Error] 기타 예외
+            // 그 외 예외처리
+            log.error("Batch Execution Error", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                  .body(Response.fail("배치 실행 중 오류 발생: " + e.getMessage()));
         }
