@@ -36,7 +36,7 @@ public class EmailNotificationConsumer {
         log.info("title={}", event.getEmailTitle());
         log.info("content={}", event.getContent());
 
-        // 🔹 90% 실패 확률 적용
+
         boolean sendSuccess = Math.random() >= failRate;
 
         if(sendSuccess) {
