@@ -1,7 +1,15 @@
 package springboot.billgates.batch.billing;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.sql.PreparedStatement;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+import javax.sql.DataSource;
+
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -24,6 +32,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.transaction.PlatformTransactionManager;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import springboot.billgates.batch.billing.dto.BillingPack;
 import springboot.billgates.batch.billing.listener.JobLockListener;
 import springboot.billgates.domain.billing.entity.Billing;
@@ -66,7 +77,7 @@ public class BillingJobConfig {
     public Job billingJob() {
         return new JobBuilder("billingJob", jobRepository)
             .start(billingStep())
-            // .listener(jobLockListener)
+            .listener(jobLockListener)
             .build();
     }
 

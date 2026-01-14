@@ -20,6 +20,9 @@ public class MessageSendHistory {
     @Column(name = "message_id", nullable = false)
     private Long messageId;
 
+    @Column(name = "channel", nullable = false, length = 50)
+    private String channel; // EMAIL / SMS
+
     @Column(name = "success", nullable = false)
     private Boolean success;
 
