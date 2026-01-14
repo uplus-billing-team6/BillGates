@@ -1,22 +1,27 @@
 # BillGates - 통신 요금 정산 및 알림 시스템
 
-대용량 통신 요금 정산과 비동기 메시지 발송을 위한 백엔드 시스템
-
 ##  목차
 
 - [서비스 소개](#-서비스-소개)
 - [프로젝트 배경](#-프로젝트-배경)
-- [기술적 달성](#-기술적-달성)
 - [프로젝트 일정](#-프로젝트-일정)
 - [기술 스택](#️-기술-스택)
-- [실행 방법](#-실행-방법)
+- [ERD](#-ERD)
+- [기술적 달성](#-기술적-달성)
 - [트러블슈팅](#-트러블슈팅)
+- [실행 방법](#-실행-방법)
 
----
+
+<br>
 
 ##  서비스 소개
 
-**BillGates**는 통신사의 핵심 업무인 **빌링(Billing)**과 **고객 알림**을 처리하는 대용량 메시지 처리 시스템입니다.
+| 항목 | 내용 |
+| --- | --- |
+| **팀명** | Billgates |
+| **주제** | 통신 빌링(Billing) 및 고객 알림을 위한 대용량 메시지 처리 시스템 |
+| **타겟** | 대규모 회원을 보유한 통신사·플랫폼 서비스 |
+| **개발 기간** | 2026.01.07 ~ 2026.01.27 (약 3주) |
 
 ### 주요 기능
 
@@ -32,21 +37,17 @@
 - **월별 사용 이력**: 500만 건
 - **월별 청구 발송**: 100만 건 (이메일/SMS)
 
----
+<br>
 
 ##  프로젝트 배경
 
-통신사의 핵심적이고 기초적인 업무인 **"빌링"**, **"고객 알림"**을 주제로 한 대용량 메시지 처리 아키텍처 프로젝트입니다.
-
 ### 문제 정의
 
-통신사에서는 매달 다음과 같은 대규모 작업이 필요합니다:
+매달 다음과 같은 대규모 작업이 필요합니다:
 
 - 수천만 건의 요금 청구서 생성
 - 데이터 사용량 경고 알림
 - 가입/해지 문자 발송
-
-이러한 작업은 **안정성**과 **대용량 처리**가 필수이며, 백엔드 엔지니어로서 반드시 경험해야 할 핵심 기술입니다.
 
 ### 해결 방안
 
@@ -54,11 +55,74 @@
 2. **Apache Kafka**: 비동기 메시지 처리로 시스템 부하 분산
 3. **병렬 처리**: 12개 Partition을 활용한 고성능 메시지 발송
 
----
+<br>
+
+## 📆 프로젝트 일정
+
+**2026.01.07 ~ 2026.01.27**
+
+| 기간 | 단계 | 주요 내용 |
+|------|------|-----------|
+| **1/7 ~ 1/9** | 기획 및 설계 | 주제 선정 및 일정 수립, 세부 기획 구상 |
+| **1/12 ~ 1/16** | 구현 (Core) | 더미데이터 적재, Spring Batch 정산 기능, Kafka 메시지 전송 |
+| **1/19 ~ 1/23** | 구현 (Advanced) | 예약 발송, 금지 시간대, 실패 처리, 통계 |
+| **1/26** | 마무리 | 발표 자료, 시연 영상, README 정리 |
+| **1/27** | 발표 | 최종 제출 및 발표 |
+
+### 🔗 [WBS](https://docs.google.com/spreadsheets/d/1SjeskgJBgr_TXsPWl35sV_5r3AC7aNji/edit?gid=124609301#gid=124609301)
+
+
+<br>
+
+
+## 🛠️ 기술 스택
+
+### Backend
+![Java](https://img.shields.io/badge/Java_17-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot_3.5.9-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)
+![Spring Batch](https://img.shields.io/badge/Spring_Batch-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
+![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
+
+### Message Queue
+![Apache Kafka](https://img.shields.io/badge/Apache_Kafka_3.9.1-231F20?style=for-the-badge&logo=apache-kafka&logoColor=white)
+
+### Database & Batch Control
+![MySQL](https://img.shields.io/badge/MySQL_8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+![Flyway](https://img.shields.io/badge/Flyway-CC0200?style=for-the-badge&logo=flyway&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+
+### API Docs
+![Swagger](https://img.shields.io/badge/Swagger_2.8-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)
+
+
+### DevOps
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+
+### Build Tool
+![Gradle](https://img.shields.io/badge/Gradle_8.x-02303A?style=for-the-badge&logo=gradle&logoColor=white)
+
+### Collaboration Tools
+![Jira](https://img.shields.io/badge/Jira-0052CC?style=for-the-badge&logo=jira&logoColor=white)
+![Slack](https://img.shields.io/badge/Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)
+![Notion](https://img.shields.io/badge/Notion-000000?style=for-the-badge&logo=notion&logoColor=white)
+
+
+
+<br>
+
+## ERD
+<img width="2378" height="1362" alt="유레카 종합프로젝트 6조 (2)" src="https://github.com/user-attachments/assets/65707240-6164-4252-8564-e2174ee2b8ea" />
+
+
+<br>
+<br>
+
 
 ##  기술적 달성
 
-### 1. 대용량 통신 요금 정산 시스템
+<details>
+<summary><strong>1. 대용량 통신 요금 정산 시스템</strong></summary>
 
 #### Spring Batch를 활용한 정산 처리
 
@@ -90,10 +154,12 @@ BILLING & BILLING_ITEM 저장
 #### 🚀 고도화 계획 (To-Be)
 - 분산 락 (Distributed Lock): 다중 서버 환경에서의 중복 실행 방지를 위해 Redis 도입 예정.
 - 멱등성 쿼리 (Idempotency): 재실행 시 데이터 중복 에러를 방지하고 덮어쓰기가 가능하도록 ON DUPLICATE KEY UPDATE 쿼리 적용 예정.
-  
----
 
-### 2. Kafka 기반 청구 메시지 전송 시스템
+<br>
+</details>
+
+<details>
+<summary><strong>2. Kafka 기반 청구 메시지 전송 시스템</strong></summary>
 
 #### 비동기 메시지 전송 구조
 
@@ -142,9 +208,12 @@ Consumer (12 Thread 병렬 처리)
 MESSAGE_SEND_HISTORY (결과 저장)
 ```
 
----
+<br>
+</details>
 
-### 3. 예약 발송 및 금지 시간대 처리
+<details>
+<summary><strong>3. 예약 발송 및 금지 시간대 처리</strong></summary>
+
 
 #### 고객 맞춤 청구일 설정
 
@@ -169,111 +238,8 @@ MESSAGE_SEND_HISTORY (결과 저장)
 발송 불가 → 다음 시간으로 연기
 ```
 
----
-
-## 📆 프로젝트 일정
-
-**2026.01.07 ~ 2026.01.27**
-
-| 기간 | 단계 | 주요 내용 |
-|------|------|-----------|
-| **1/7 ~ 1/9** | 기획 및 설계 | 주제 선정 및 일정 수립, 세부 기획 구상 |
-| **1/12 ~ 1/16** | 구현 (Core) | 더미데이터 적재, Spring Batch 정산 기능, Kafka 메시지 전송 |
-| **1/19 ~ 1/23** | 구현 (Advanced) | 예약 발송, 금지 시간대, 실패 처리, 통계 |
-| **1/26** | 마무리 | 발표 자료, 시연 영상, README 정리 |
-| **1/27** | 발표 | 최종 제출 및 발표 |
-
----
-
-## 🛠️ 기술 스택
-
-### Backend
-![Java](https://img.shields.io/badge/Java_17-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring_Boot_3.5.9-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)
-![Spring Batch](https://img.shields.io/badge/Spring_Batch-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
-![Spring Data JPA](https://img.shields.io/badge/Spring_Data_JPA-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
-
-### Message Queue
-![Apache Kafka](https://img.shields.io/badge/Apache_Kafka_3.9.1-231F20?style=for-the-badge&logo=apache-kafka&logoColor=white)
-
-### Database
-![MySQL](https://img.shields.io/badge/MySQL_8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
-
-### DevOps
-![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![Docker Compose](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-
-### Build Tool
-![Gradle](https://img.shields.io/badge/Gradle_8.x-02303A?style=for-the-badge&logo=gradle&logoColor=white)
-
----
-
-
-##  실행 방법
-
-### 사전 준비
-
-- Java 17
-- Docker & Docker Compose
-- MySQL 8.0
-- Gradle
-
-### 1. 환경 변수 설정
-
-`.env` 파일 생성:
-
-```properties
-# MySQL
-DB_URL=jdbc:mysql://localhost:3306/{DBNAME}?serverTimezone=Asia/Seoul
-DB_USERNAME={USERNAME}
-DB_PASSWORD={PASSWORD}
-
-# Encryption
-ENCRYPTION_SECRET=your-secret-key-32-characters!!
-ENCRYPTION_IV=your-iv-16chars!
-```
-
-### 2. Kafka 실행 (Docker Compose)
-
-```bash
-docker-compose up -d
-```
-
-**Kafka UI 확인:**
-```
-http://localhost:8989
-```
-
-### 3. Spring Boot 실행
-
-```bash
-./gradlew bootRun
-```
-
-### 4. 테스트 API 호출
-
-#### 이메일 단건 테스트
-```bash
-curl http://localhost:8080/api/test/email
-```
-
-#### SMS 단건 테스트
-```bash
-curl http://localhost:8080/api/test/sms
-```
-
-#### 대량 테스트 (100건)
-```bash
-curl "http://localhost:8080/api/test/bulk?count=100"
-```
-
-#### 통계 확인
-```bash
-curl http://localhost:8080/api/test/stats
-```
-
-
----
+</details>
+<br>
 
 ##  핵심 성과
 
@@ -291,11 +257,13 @@ curl http://localhost:8080/api/test/stats
 - **금지 시간대 회피**: 수신 거부 시간대 자동 처리
 - 채널별 독립 운영 (이메일/SMS)
 
----
+<br>
 
 ##  트러블슈팅
 
-### 1. Kafka 메타데이터 관리: KRaft vs ZooKeeper
+<details>
+<summary><strong> Kafka 메타데이터 관리: KRaft vs ZooKeeper</strong></summary>
+
 
 #### 문제 상황
 Kafka 초기 구성 시 메타데이터 관리 방식을 선택해야 했습니다.
@@ -332,9 +300,10 @@ environment:
 - ZooKeeper 없이 안정적인 메타데이터 관리
 - 향후 Kafka 업그레이드 시에도 호환성 유지
 
----
 
-### 2. Docker Image 선택: Bitnami → Confluent Inc
+</details>
+<details>
+<summary><strong> Docker Image 선택: Bitnami → Confluent Inc </strong></summary>
 
 #### 문제 상황
 초기에는 Bitnami Kafka 이미지를 사용하려 했으나, 실제 운영 환경과의 호환성 문제가 발생했습니다.
@@ -390,9 +359,10 @@ services:
 - Kafka UI 연동 문제 없음
 - 공식 문서 참고로 빠른 문제 해결
 
----
+</details>
+<details>
 
-### 3. Kafka Listener 설정: 단일 포트 → 이중 리스너
+<summary><strong> Kafka Listener 설정: 단일 포트 → 이중 리스너 </strong></summary>
 
 #### 문제 상황
 초기에는 9092 포트 하나만 설정했으나, Spring Boot 애플리케이션에서 Kafka 연결이 실패했습니다.
@@ -475,7 +445,75 @@ Topic created: notification-email (12 partitions)
 - 네트워크 격리 및 보안 향상
 - 실제 운영 환경 구조와 유사한 설정
 
----
+</details>
+
+
+<br>
+
+##  실행 방법
+
+### 사전 준비
+
+- Java 17
+- Docker & Docker Compose
+- MySQL 8.0
+- Gradle
+
+### 1. 환경 변수 설정
+
+`.env` 파일 생성:
+
+```properties
+# MySQL
+DB_URL=jdbc:mysql://localhost:3306/{DBNAME}?serverTimezone=Asia/Seoul
+DB_USERNAME={USERNAME}
+DB_PASSWORD={PASSWORD}
+
+# Encryption
+ENCRYPTION_SECRET=your-secret-key-32-characters!!
+ENCRYPTION_IV=your-iv-16chars!
+```
+
+### 2. Kafka 실행 (Docker Compose)
+
+```bash
+docker-compose up -d
+```
+
+**Kafka UI 확인:**
+```
+http://localhost:8989
+```
+
+### 3. Spring Boot 실행
+
+```bash
+./gradlew bootRun
+```
+
+### 4. 테스트 API 호출
+
+#### 이메일 단건 테스트
+```bash
+curl http://localhost:8080/api/test/email
+```
+
+#### SMS 단건 테스트
+```bash
+curl http://localhost:8080/api/test/sms
+```
+
+#### 대량 테스트 (100건)
+```bash
+curl "http://localhost:8080/api/test/bulk?count=100"
+```
+
+#### 통계 확인
+```bash
+curl http://localhost:8080/api/test/stats
+```
+
+<br>
 
 ##  향후 개발 계획
 
@@ -486,8 +524,6 @@ Topic created: notification-email (12 partitions)
 - [ ] 성능 테스트 자동화
 - [ ] AWS 인프라 구축
 
----
-
 ##  라이센스
 
-MIT License
+Team Billgates | LG U+ URECA 백엔드 개발자 과정 3기 종합프로젝트 6조
