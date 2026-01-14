@@ -98,6 +98,7 @@ public class BillingJobConfig {
             .sql(BillingSqls.SELECT_MEMBERS)
             .rowMapper(new BeanPropertyRowMapper<>(Member.class))
             .fetchSize(CHUNK_SIZE)
+            .saveState(false)
             .build();
 
         return new SynchronizedItemStreamReaderBuilder<Member>()
