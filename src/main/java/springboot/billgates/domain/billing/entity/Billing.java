@@ -1,4 +1,4 @@
-package springboot.billgates.domain.billing;
+package springboot.billgates.domain.billing.entity;
 
 import lombok.*;
 import java.time.LocalDateTime;

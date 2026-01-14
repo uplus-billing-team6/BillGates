@@ -1,4 +1,4 @@
-package springboot.billgates.controller;
+package springboot.billgates.domain.billing.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.Job;
