@@ -56,20 +56,25 @@ public class BatchController {
             return ResponseEntity.ok(Response.success("Batch Started", data));
 
         } catch (IllegalStateException e) {
-            // "JOB_ALREADY_RUNNING" 처리 (409 Conflict)
+            // 이미 실행중인 job 을 또 실행하려는 경우 (단, force=false). 중복 batch 방지 (409 Conflict)
+            log.error("Batch Execution Error", e);
             return ResponseEntity.status(HttpStatus.CONFLICT)
                                  .body(Response.fail("현재 배치가 실행 중입니다. 재실행 하려면 force=true 옵션을 사용하세요."));
 
         } catch (JobInstanceAlreadyCompleteException e) {
-            // 이미 완료된 Job 처리 (500 Error)
+            // 이미 완료된 Job 처리 (409 Conflict)
+            log.error("Batch Execution Error", e);
             return ResponseEntity.status(HttpStatus.CONFLICT)
                                  .body(Response.fail("이미 완료된 배치입니다."));
 
         } catch (JobExecutionAlreadyRunningException | JobRestartException e) {
-          return ResponseEntity.status(HttpStatus.CONFLICT)
+            // batch 도중 실패한 job 이고, force=false 일때
+            log.error("Batch Execution Error", e);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
                                  .body(Response.fail("이전 실패 기록이 존재합니다. 처음부터 다시 실행하려면 force=true 옵션을 사용하세요."));
 
         } catch (Exception e) {
+            // 그 외 예외처리
             log.error("Batch Execution Error", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                  .body(Response.fail("배치 실행 중 오류 발생: " + e.getMessage()));
