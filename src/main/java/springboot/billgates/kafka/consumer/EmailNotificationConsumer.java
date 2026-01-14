@@ -18,6 +18,9 @@ public class EmailNotificationConsumer {
 
     private final MessageSendHistoryRepository historyRepository;
 
+    // 1퍼 실패
+    private final double failRate = 0.01;
+
     @KafkaListener(
         topics = "notification-email",
         groupId = "notification-email-group",
@@ -33,10 +36,18 @@ public class EmailNotificationConsumer {
         log.info("title={}", event.getEmailTitle());
         log.info("content={}", event.getContent());
 
-        // 🔹 실제 메일 전송은 아직 없음 → 성공 처리
-        boolean sendSuccess = true;
 
+        boolean sendSuccess = Math.random() >= failRate;
+
+        if(sendSuccess) {
+            log.info("[EMAIL] SEND SUCCESS (TEST MODE) messageId={}", event.getMessageId());
+        } else {
+            log.warn("[EMAIL] SEND FAILED (TEST MODE) messageId={}", event.getMessageId());
+        }
+
+        // DB 저장
         MessageSendHistory history = MessageSendHistory.builder()
+        		.channel("EMAIL")
                 .messageId(event.getMessageId())
                 .success(sendSuccess)
                 .sentAt(LocalDateTime.now())
