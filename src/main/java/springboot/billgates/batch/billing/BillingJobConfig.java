@@ -1,6 +1,5 @@
 package springboot.billgates.batch.billing;
 
-import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -27,8 +26,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import lombok.RequiredArgsConstructor;
@@ -39,16 +36,9 @@ import springboot.billgates.domain.billing.entity.Billing;
 import springboot.billgates.domain.billing.entity.BillingItem;
 import springboot.billgates.domain.billing.sql.BillingSqls;
 import springboot.billgates.domain.member.Member;
-import springboot.billgates.service.BillingWriterService;
+import springboot.billgates.batch.billing.service.BillingWriterService;
 
-import javax.sql.DataSource;
-import java.sql.PreparedStatement;
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.time.YearMonth;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j

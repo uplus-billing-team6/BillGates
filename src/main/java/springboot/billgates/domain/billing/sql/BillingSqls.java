@@ -21,4 +21,15 @@ public class BillingSqls {
         INSERT INTO BILLING_ITEM (billing_id, category, item_name, amount)
         VALUES (?, ?, ?, ?)
         """;
+
+    public static final String SELECT_EMAILS_PREFIX =
+        """
+        SELECT member_id, email FROM MEMBER WHERE member_id IN 
+        """;
+
+    public static final String INSERT_MESSAGE =
+        """
+        INSERT INTO MESSAGE (member_id, billing_id, channel, status, created_at, template_code)
+        VALUES (?, ?, ?, ?, ?, ?)     
+        """;
 }

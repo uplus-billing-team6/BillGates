@@ -1,4 +1,4 @@
-package springboot.billgates.service;
+package springboot.billgates.batch.billing.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,9 +8,8 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
 import springboot.billgates.batch.billing.dto.BillingPack;
-import springboot.billgates.domain.billing.entity.BillingItem;
+import springboot.billgates.domain.billing.entity.Message;
 import springboot.billgates.domain.billing.sql.BillingSqls;
-import springboot.billgates.entity.Message;
 import springboot.billgates.event.MessageCreatedEvent;
 import springboot.billgates.repository.MessageRepository;
 
@@ -37,22 +36,17 @@ public class BillingWriterService {
             return Collections.emptyMap();
         }
 
-        // PreparedStatement용 Placeholder 생성
-        String placeholders = String.join(",",
-                Collections.nCopies(memberIds.size(), "?"));
+        // 동적 IN 절 생성 (?,?,?...)
+        String placeholders = String.join(",", Collections.nCopies(memberIds.size(), "?"));
+        String sql = BillingSqls.SELECT_EMAILS_PREFIX + "(" + placeholders + ")";
 
-        String sql = "SELECT member_id, email FROM MEMBER WHERE member_id IN (" + placeholders + ")";
-
-        Map<Long, String> memberEmailMap = jdbcTemplate.query(
-                sql,
-                rs -> {
-                    Map<Long, String> map = new HashMap<>();
-                    while (rs.next()) {
-                        map.put(rs.getLong("member_id"), rs.getString("email"));
-                    }
-                    return map;
-                },
-                memberIds.toArray()  // PreparedStatement로 바인딩
+        Map<Long, String> memberEmailMap = jdbcTemplate.query(sql, rs -> {
+            Map<Long, String> map = new HashMap<>();
+            while (rs.next()) {
+                map.put(rs.getLong("member_id"), rs.getString("email"));
+            }
+            return map;
+            }, memberIds.toArray()  // PreparedStatement로 바인딩
         );
 
         log.debug(">>> [MEMBER] Loaded {} emails", memberEmailMap.size());
@@ -105,23 +99,42 @@ public class BillingWriterService {
      * 트랜잭션 커밋 후 Kafka 전송됨
      */
     public void createAndPublishMessage(BillingPack pack, long billingId, String email) {
-        // MESSAGE 저장
+        // 1. MESSAGE 저장
         Message message = Message.builder()
-                .memberId(pack.getBilling().getMemberId())
-                .billingId(billingId)
-                .channel("EMAIL")
-                .status("SENT")
-                .createdAt(LocalDateTime.now())
-                .build();
+                                 .memberId(pack.getBilling().getMemberId())
+                                 .billingId(billingId)
+                                 .channel("EMAIL")
+                                 .status("READY")
+                                 .createdAt(LocalDateTime.now())
+                                 .templateCode(1L)
+                                 .build();
 
-        Message savedMessage = messageRepository.save(message);
+        // 4-2. JDBC로 Message 저장
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(con -> {
+            PreparedStatement pstmt = con.prepareStatement(
+                BillingSqls.INSERT_MESSAGE,
+                PreparedStatement.RETURN_GENERATED_KEYS
+            );
+            pstmt.setLong(1, message.getMemberId());
+            pstmt.setLong(2, message.getBillingId());
+            pstmt.setString(3, message.getChannel());
+            pstmt.setString(4, message.getStatus());
+            pstmt.setTimestamp(5, Timestamp.valueOf(message.getCreatedAt()));
+            pstmt.setLong(6, message.getTemplateCode());
+            return pstmt;
+        }, keyHolder);
 
-        // 이벤트 발행 (트랜잭션 커밋 후 처리됨)
-        eventPublisher.publishEvent(
-                new MessageCreatedEvent(savedMessage, pack, email)
-        );
+        // 저장된 ID 세팅 (필요시)
+        long messageId = Objects.requireNonNull(keyHolder.getKey()).longValue();
+        message.setMessageId(messageId);
+
+        // 4-3. 이벤트 발행 (트랜잭션 커밋 후 Kafka 전송 리스너가 동작하도록)
+
+        // >>>>> 여기서 에러가 너무 많이 나옴. <<<<
+        //eventPublisher.publishEvent(new MessageCreatedEvent(message, pack, email));
 
         log.debug(">>> [MESSAGE] Created: messageId={}, billingId={}",
-                savedMessage.getMessageId(), billingId);
+            messageId, billingId);
     }
 }
