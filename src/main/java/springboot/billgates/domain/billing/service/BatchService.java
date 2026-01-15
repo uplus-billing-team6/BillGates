@@ -19,8 +19,8 @@ public class BatchService {
 
     private final JobLauncher jobLauncher;
     private final JobExplorer jobExplorer;
-    private final JobRepository jobRepository;
     private final Job billingJob;
+    private final BatchRecoveryService batchRecoveryService;
 
     /**
      * 배치 실행 메인 로직
@@ -38,7 +38,7 @@ public class BatchService {
         // 3. 실행 중이고 강제 실행이라면 -> 좀비 프로세스 정리 후 재실행
         if (isRunning) {
             log.warn(">>> [Force Run] Cleaning up zombie job for month: {}", billingMonth);
-            cleanupZombieJob(billingMonth);
+            batchRecoveryService.cleanupZombieJob(billingMonth);
         }
 
         // 4. 파라미터 생성 및 실행
@@ -63,33 +63,6 @@ public class BatchService {
                                 .anyMatch(e -> billingMonth.equals(e.getJobParameters().getString("billingMonth")));
     }
 
-    /**
-     * 좀비 Job 강제 종료 처리 (STARTED -> FAILED)
-     * Transactional을 사용하여 DB 업데이트 안전성 확보
-     */
-    @Transactional
-    protected void cleanupZombieJob(String billingMonth) {
-        Set<JobExecution> runningExecutions = jobExplorer.findRunningJobExecutions("billingJob");
 
-        for (JobExecution execution : runningExecutions) {
-            // 1. 해당 좀비 Job 상태 변경
-            if (billingMonth.equals(execution.getJobParameters().getString("billingMonth"))) {
-                execution.setStatus(BatchStatus.FAILED);
-                execution.setExitStatus(new ExitStatus("FAILED", "Force stopped by API"));
-                execution.setEndTime(LocalDateTime.now());
 
-            }
-
-            // 2. 해당 Job 의 하위 Step 들도 찾아서 모두 실패 처리
-            for (StepExecution stepExecution : execution.getStepExecutions()) {
-                if (stepExecution.getStatus() == BatchStatus.STARTED) {
-                    stepExecution.setStatus(BatchStatus.FAILED);
-                    stepExecution.setExitStatus(new ExitStatus("FAILED", "Force stopped by API"));
-                    stepExecution.setEndTime(LocalDateTime.now());
-                }
-            }
-            // 3. DB 업데이트
-            jobRepository.update(execution);
-        }
-    }
 }
