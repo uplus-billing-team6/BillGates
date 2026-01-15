@@ -13,12 +13,27 @@ public class BillingSqls {
         """;
     public static final String INSERT_BILLING =
         """
-        INSERT INTO BILLING (member_id, billing_month, total_amount, created_at)
+        INSERT INTO BILLING (
+            member_id,
+            billing_month,
+            total_amount,
+            created_at
+        )
         VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            total_amount = VALUES(total_amount),
+            created_at = VALUES(created_at)
         """;
     public static final String INSERT_BILLING_ITEM =
         """
-        INSERT INTO BILLING_ITEM (billing_id, category, item_name, amount)
+        INSERT INTO BILLING_ITEM (
+            billing_id,
+            category,
+            item_name,
+            amount
+        )
         VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            amount = VALUES(amount)
         """;
 }
