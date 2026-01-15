@@ -5,11 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.*;
 import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.batch.core.launch.JobLauncher;
-import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -27,6 +26,11 @@ public class BatchService {
      * @return 실행된 JobExecution 객체
      */
     public JobExecution runBillingJob(String billingMonth, boolean isForce) throws Exception {
+        // 0. 이미 성공한 기록이 있는지 전부 확인
+        if (!isForce && checkAlreadyCompleted(billingMonth)) {
+            throw new JobInstanceAlreadyCompleteException("이미 성공적으로 완료된 배치가 존재합니다.");
+        }
+
         // 1. 현재 실행 중인지 확인
         boolean isRunning = checkIsRunning(billingMonth);
 
@@ -63,6 +67,30 @@ public class BatchService {
                                 .anyMatch(e -> billingMonth.equals(e.getJobParameters().getString("billingMonth")));
     }
 
+    /**
+     * 해당 월(billingMonth) 파라미터를 가진 Job 중,
+     * requestTime 유무와 상관없이 "COMPLETED" 된 것이 하나라도 있는지 확인
+     */
+    private boolean checkAlreadyCompleted(String billingMonth) {
+        // 최근 100개의 잡 인스턴스를 가져옴 (개수는 적절히 조절)
+        List<JobInstance> instances = jobExplorer.getJobInstances("billingJob", 0, 100);
 
+        for (JobInstance instance : instances) {
+            // 1. 해당 인스턴스의 실행 기록들을 가져옴
+            List<JobExecution> executions = jobExplorer.getJobExecutions(instance);
 
+            for (JobExecution execution : executions) {
+                JobParameters params = execution.getJobParameters();
+
+                // 2. 파라미터가 '해당 월'인지 확인
+                if (billingMonth.equals(params.getString("billingMonth"))) {
+                    // 3. 상태가 'COMPLETED' 인지 확인
+                    if (execution.getStatus() == BatchStatus.COMPLETED) {
+                        return true; // 성공한 적이 있음!
+                    }
+                }
+            }
+        }
+        return false; // 성공 기록 없음
+    }
 }
