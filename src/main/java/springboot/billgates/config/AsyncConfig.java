@@ -27,4 +27,14 @@ public class AsyncConfig {
             .threadNamePrefix("Async-Dummy-") // 스레드 이름 접두사 (로그 분석 용이: Async-Dummy-1, Async-Dummy-2...)
             .build();
     }
+
+    @Bean(name = "kafkaExecutor")
+    public Executor kafkaExecutor() {
+        return new ThreadPoolTaskExecutorBuilder()
+                .corePoolSize(10)      // 기본 10개 (100만 건 처리에 충분)
+                .maxPoolSize(20)       // 최대 20개 (폭주 시 대응)
+                .queueCapacity(1000)   // 대기열 1000개 (Chunk 크기)
+                .threadNamePrefix("Async-Kafka-")
+                .build();
+    }
 }
