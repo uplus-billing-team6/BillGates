@@ -40,12 +40,12 @@ public class JobLockListener implements JobExecutionListener {
         
         // Redis에 (Key, Token) 저장. NX(없을 때만), 1시간 만료
         Boolean isLocked = redisTemplate.opsForValue()
-                .setIfAbsent(lockKey, lockToken, Duration.ofHours(1));
+                .setIfAbsent(lockKey, lockToken, Duration.ofHours(24));
         
         if (isLocked == null || !isLocked) {
-            log.error(">>> 이미 실행 중인 배치입니다. 실행을 중단합니다. (Key: {})", lockKey);
+            log.warn(">>> 이미 실행 중인 배치입니다. (Key: {})", lockKey);
             // 예외를 던져서 Job 실행 자체를 막음
-            throw new RuntimeException("중복 실행 방지: 이미 실행 중인 배치입니다.");
+            throw new IllegalStateException("중복 실행 방지: 이미 실행 중인 배치입니다.");
         }
         
         // 해제(afterJob) 때 확인하기 위해 ExecutionContext에 토큰 저장
