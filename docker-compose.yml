@@ -1,4 +1,5 @@
 services:
+  # 1. Kafka (KRaft Mode)
   kafka:
     image: confluentinc/cp-kafka:latest
     container_name: kafka
@@ -24,6 +25,7 @@ services:
       - kafka-data:/var/lib/kafka/data
     networks:
       - kafka-network
+
   # 2. Kafka UI
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -38,8 +40,22 @@ services:
       - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:29092
     networks:
       - kafka-network
+
+  # 3. Redis
+  redis:
+    image: redis:alpine
+    container_name: billgates-redis
+    ports:
+      - "6379:6379"
+    # 메모리 데이터를 60초마다 디스크에 저장(안전장치) & 로그 레벨 조정
+    command: redis-server --save 60 1 --loglevel warning
+    restart: always
+    networks:
+      - kafka-network
+
 volumes:
   kafka-data:
+
 networks:
   kafka-network:
     driver: bridge
