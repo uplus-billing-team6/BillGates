@@ -51,6 +51,9 @@ dependencies {
     // db 마이그레이션
     implementation "org.flywaydb:flyway-core:9.22.3"
     implementation "org.flywaydb:flyway-mysql:9.22.3"
+
+    // tsid
+    implementation 'io.hypersistence:hypersistence-tsid:2.1.4'
 }
 
 tasks.named('test') {
