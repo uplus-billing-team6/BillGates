@@ -138,7 +138,7 @@ public class AdminDataService {
      * [Usage History 생성 로직]
      * 1. 모든 회원에게 1개의 요금제(PLAN) 필수 할당 (Phase 1)
      * 2. 나머지 개수는 비율에 맞춰 소액결제/부가서비스/로밍 등으로 채움 (Phase 2)
-     * 3. 날짜 범위: 1년
+     * 3. 날짜 범위: 1년 -> 1달
      */
     private void createUsageHistories(int targetTotalCount) {
         log.info(">>> Usage History 생성 시작 (목표: {}건)", targetTotalCount);
@@ -266,7 +266,8 @@ public class AdminDataService {
 
     // Usage 파라미터 생성 및 리스트 추가 (날짜, 금액 계산 포함)
     private void addUsageToBatch(List<Object[]> batchArgs, long usageId, long memberId, ItemInfo item) {
-        LocalDateTime randomDate = generateWideRandomDate();
+        //LocalDateTime randomDate = generateWideRandomDate();
+        LocalDateTime randomDate = generateDate();
         long amount = calculateAmount(item);
         batchArgs.add(new Object[] {usageId, memberId, item.getItemId(), Timestamp.valueOf(randomDate), amount});
     }
@@ -304,6 +305,17 @@ public class AdminDataService {
         // 현재로부터 1년(365일) 전 ~ 현재 사이 랜덤
         long minutes = ThreadLocalRandom.current().nextLong(365 * 24 * 60);
         return LocalDateTime.now().minusMinutes(minutes);
+    }
+
+    // 날짜 생성 로직 (특정 월 범위: 2025-04-01 00:00 ~ 2025-04-30 23:59)
+    private LocalDateTime generateDate() {
+        int year = 2025;
+        int month = 4;
+
+        LocalDateTime startOfMonth = LocalDateTime.of(year, month, 1, 0 ,0 ,0);
+        int daysInMonth = startOfMonth.toLocalDate().lengthOfMonth();
+        long randomMinutes = ThreadLocalRandom.current().nextLong(daysInMonth * 24 * 60);
+        return startOfMonth.plusMinutes(randomMinutes);
     }
 
     @Getter
