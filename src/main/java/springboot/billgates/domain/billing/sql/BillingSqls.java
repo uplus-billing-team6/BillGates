@@ -14,15 +14,14 @@ public class BillingSqls {
     public static final String INSERT_BILLING =
         """
         INSERT INTO BILLING (
+            billing_id,
             member_id,
             billing_month,
             total_amount,
             created_at
         )
-        VALUES (?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            total_amount = VALUES(total_amount),
-            created_at = VALUES(created_at)
+        VALUES (?, ?, ?, ?, ?)
+        
         """;
     public static final String INSERT_BILLING_ITEM =
         """
@@ -33,29 +32,28 @@ public class BillingSqls {
             amount
         )
         VALUES (?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            amount = VALUES(amount)
+        
         """;
 
-    public static final String SELECT_EMAILS_PREFIX =
-        """
-        SELECT member_id, email FROM MEMBER WHERE member_id IN 
-        """;
+    public static final String SELECT_JOINED_DATA = """
+        SELECT m.member_id, i.category, i.name as item_name, u.amount
+        FROM MEMBER m
+        JOIN USAGE_HISTORY u ON m.member_id = u.member_id
+        JOIN ITEM i ON u.item_id = i.item_id 
+        WHERE u.usage_date BETWEEN ? AND ?
+        ORDER BY m.member_id
+    """;
 
-    public static final String INSERT_MESSAGE =
-        """
-        INSERT INTO MESSAGE (member_id, billing_id, channel, status, created_at, template_code)
-        VALUES (?, ?, ?, ?, ?, ?)     
-        """;
-
-    public static final String SELECT_EMAILS_PREFIX =
-        """
-        SELECT member_id, email FROM MEMBER WHERE member_id IN 
-        """;
-
-    public static final String INSERT_MESSAGE =
-        """
-        INSERT INTO MESSAGE (member_id, billing_id, channel, status, created_at, template_code)
-        VALUES (?, ?, ?, ?, ?, ?)     
-        """;
+    public static final String INSERT_MESSAGE = """
+    INSERT INTO MESSAGE (
+        message_id, 
+        member_id, 
+        billing_id, 
+        channel, 
+        status, 
+        reserved_at, 
+        created_at, 
+        template_code
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+""";
 }
