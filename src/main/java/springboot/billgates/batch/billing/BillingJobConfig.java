@@ -193,7 +193,6 @@ public class BillingJobConfig {
                 });
                 if (!pack.getItems().isEmpty()) {
                     for (BillingItem item : pack.getItems()) {
-                        // INSERT INTO BILLING_ITEM (billing_id, category, item_name, amount) VALUES (?, ?, ?, ?)
                         itemArgs.add(new Object[] {
                             billingId, // 위에서 생성한 billingId를 그대로 사용
                             item.getCategory(),
@@ -202,8 +201,8 @@ public class BillingJobConfig {
                         });
                     }
                 }
-                // 4. Message Args 적재 (요청하신 값 적용)
-                // 순서: message_id, member_id, billing_id, channel, status, reserved_at, created_at, template_code
+
+                // Message Args 적재
                 long messageId = TSID.fast().toLong(); // Message ID 생성
 
                 messageArgs.add(new Object[] {
