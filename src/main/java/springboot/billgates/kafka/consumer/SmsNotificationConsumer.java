@@ -1,15 +1,15 @@
 package springboot.billgates.kafka.consumer;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDateTime;
+
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import springboot.billgates.entity.MessageSendHistory;
 import springboot.billgates.kafka.dto.NotificationEvent;
 import springboot.billgates.repository.MessageSendHistoryRepository;
-
-import java.time.LocalDateTime;
 
 @Slf4j
 @Component
@@ -20,22 +20,32 @@ public class SmsNotificationConsumer {
 
     @KafkaListener(
             topics = "notification-sms",
-            groupId = "notification-sms-group"
+            groupId = "sms-group"
     )
-    @Transactional
     public void consume(NotificationEvent event) {
 
-        log.info("[SMS] message received. messageId={}", event.getMessageId());
+        if (historyRepository.existsByMessageIdAndChannel(
+                event.getMessageId(), "SMS")) {
+            return;
+        }
 
-        MessageSendHistory history = MessageSendHistory.builder()
-                .messageId(event.getMessageId())
-                .channel("SMS")
-                .success(true)
-                .sentAt(LocalDateTime.now())
-                .build();
+        boolean success = true;
 
-        historyRepository.save(history);
+        try {
+            // TODO 실제 SMS 발송
+            log.info("Send SMS. messageId={}", event.getMessageId());
+        } catch (Exception e) {
+            success = false;
+            log.error("SMS send failed. messageId={}", event.getMessageId(), e);
+        }
 
-        log.info("[SMS] send SUCCESS. messageId={}", event.getMessageId());
+        historyRepository.save(
+                MessageSendHistory.builder()
+                        .messageId(event.getMessageId())
+                        .channel("SMS")
+                        .success(success)
+                        .sentAt(LocalDateTime.now())
+                        .build()
+        );
     }
 }
