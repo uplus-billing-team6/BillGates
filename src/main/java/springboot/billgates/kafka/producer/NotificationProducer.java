@@ -3,46 +3,64 @@ package springboot.billgates.kafka.producer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.stereotype.Service;
+import org.springframework.kafka.support.SendResult;
+import org.springframework.stereotype.Component;
 import springboot.billgates.kafka.dto.NotificationEvent;
 
+import java.util.concurrent.CompletableFuture;
+
 @Slf4j
-@Service
+@Component
 @RequiredArgsConstructor
 public class NotificationProducer {
 
-    // 기본 타입 하지만 key는 사용하지 않음 : 순서가 중요하지 않다
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
 
-    // topic 으로 보내는 이메일 요청
+    private static final String EMAIL_TOPIC = "notification-email";
+    private static final String SMS_TOPIC = "notification-sms";
+
     public void sendEmailNotification(NotificationEvent event) {
-        log.info("[PRODUCER] 이메일 발송 요청: messageId={}", event.getMessageId());
-
-        kafkaTemplate.send("notification-email", event);
-
-        log.debug("Kafka 전송 완료: topic=notification-email, messageId={}",
-                event.getMessageId());
+        sendNotification(EMAIL_TOPIC, event);
     }
 
-    // topic 으로 보내는 sms 요청
     public void sendSmsNotification(NotificationEvent event) {
-        log.info("[PRODUCER] SMS 발송 요청: messageId={}", event.getMessageId());
-
-        kafkaTemplate.send("notification-sms", event);
-
-        log.debug("Kafka 전송 완료: topic=notification-sms, messageId={}",
-                event.getMessageId());
+        sendNotification(SMS_TOPIC, event);
     }
 
-    // db 에 저장된 값으로 자동으로 분류
-    public void sendNotification(NotificationEvent event) {
-        if ("EMAIL".equalsIgnoreCase(event.getChannel())) {
-            sendEmailNotification(event);
-        } else if ("SMS".equalsIgnoreCase(event.getChannel())) {
-            sendSmsNotification(event);
-        } else {
-            log.error("알 수 없는 채널: {}", event.getChannel());
-            throw new IllegalArgumentException("Invalid channel: " + event.getChannel());
+    private void sendNotification(String topic, NotificationEvent event) {
+        try {
+            log.info(">>> [PRODUCER] 발송 요청: topic={}, messageId={}", topic, event.getMessageId());
+
+            // 비동기 전송 (즉시 반환)
+            CompletableFuture<SendResult<String, NotificationEvent>> future =
+                    kafkaTemplate.send(topic, event);
+
+            // 성공/실패 콜백
+            future.whenComplete((result, ex) -> {
+                if (ex == null) {
+                    // 전송 성공
+                    log.debug(">>> [Kafka] 전송 완료: topic={}, messageId={}, partition={}, offset={}",
+                            topic,
+                            event.getMessageId(),
+                            result.getRecordMetadata().partition(),
+                            result.getRecordMetadata().offset());
+                } else {
+                    // 전송 실패
+                    log.error(">>> [Kafka] 전송 실패: topic={}, messageId={}, error={}",
+                            topic,
+                            event.getMessageId(),
+                            ex.getMessage(),
+                            ex);
+                }
+            });
+
+        } catch (Exception e) {
+            log.error(">>> [Kafka] 예외 발생: topic={}, messageId={}, error={}",
+                    topic,
+                    event.getMessageId(),
+                    e.getMessage(),
+                    e);
+            throw e;
         }
     }
 }

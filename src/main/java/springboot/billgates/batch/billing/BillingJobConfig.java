@@ -1,12 +1,9 @@
 package springboot.billgates.batch.billing;
 
-import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 import javax.sql.DataSource;
 
@@ -29,8 +26,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import lombok.RequiredArgsConstructor;
@@ -41,15 +36,10 @@ import springboot.billgates.domain.billing.entity.Billing;
 import springboot.billgates.domain.billing.entity.BillingItem;
 import springboot.billgates.domain.billing.sql.BillingSqls;
 import springboot.billgates.domain.member.Member;
+import springboot.billgates.batch.billing.service.BillingWriterService;
 
-import javax.sql.DataSource;
-import java.sql.PreparedStatement;
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.time.YearMonth;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Configuration
@@ -61,6 +51,8 @@ public class BillingJobConfig {
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
     private final JobLockListener jobLockListener;
+
+    private final BillingWriterService billingWriterService;
 
     private static final int CHUNK_SIZE = 1000;
 
@@ -172,37 +164,34 @@ public class BillingJobConfig {
             log.info(">>> [Writer] Saving Chunk... (Size: {} items)", chunk.getItems().size());
             long startTime = System.currentTimeMillis();
 
-            for (BillingPack pack : chunk) {
-                // 1. Billing 테이블 저장
-                KeyHolder keyHolder = new GeneratedKeyHolder();
+            // 1. MEMBER 이메일 조회 (한 번에)
+            List<Long> memberIds = chunk.getItems().stream()
+                    .map(pack -> pack.getBilling().getMemberId())
+                    .collect(Collectors.toList());
 
-                jdbcTemplate.update(con -> {
-                    PreparedStatement pstmt = con.prepareStatement(
-                        BillingSqls.INSERT_BILLING, PreparedStatement.RETURN_GENERATED_KEYS
-                    );
-                    pstmt.setLong(1, pack.getBilling().getMemberId());
-                    pstmt.setString(2, pack.getBilling().getBillingMonth());
-                    pstmt.setLong(3, pack.getBilling().getTotalAmount());
-                    pstmt.setObject(4, Timestamp.valueOf(pack.getBilling().getCreatedAt()));
-                    return pstmt;
-                }, keyHolder);
+            Map<Long, String> memberEmails = billingWriterService.loadMemberEmails(memberIds);
 
-                long billingId = Objects.requireNonNull(keyHolder.getKey()).longValue();
+            // 2. 각 Pack 처리 (DB 저장만)
+            for (BillingPack pack : chunk.getItems()) {
+                // BILLING 저장
+                long billingId = billingWriterService.saveBilling(pack);
 
-                // 2. Billing_item 테이블 저장
-                if (!pack.getItems().isEmpty()) {
-                    List<Object[]> batchArgs = new ArrayList<>();
+                // BILLING_ITEM 저장
+                billingWriterService.saveBillingItems(pack, billingId);
 
-                    for (BillingItem item : pack.getItems()) {
-                        batchArgs.add(new Object[] { billingId, item.getCategory(), item.getItemName(), item.getAmount() });
-                    }
-                    jdbcTemplate.batchUpdate(BillingSqls.INSERT_BILLING_ITEM, batchArgs);
-                }
+                // 이메일 가져오기 (없으면 기본값)
+                String email = memberEmails.getOrDefault(
+                        pack.getBilling().getMemberId(),
+                        "member" + pack.getBilling().getMemberId() + "@example.com"
+                );
+
+                // MESSAGE 저장 + 이벤트 발행
+                // (트랜잭션 커밋 후 자동으로 Kafka 전송됨)
+                billingWriterService.createAndPublishMessage(pack, billingId, email);
             }
 
-            long endTime = System.currentTimeMillis();
-            // [Log 4] 저장 완료 로그
-            log.info(">>> [Writer] Saved Complete. (Time taken: {}ms)", (endTime - startTime));
+            long elapsedTime = System.currentTimeMillis() - startTime;
+            log.info(">>> [Writer] Saved Complete. (Time: {}ms)", elapsedTime);
         };
     }
 }
