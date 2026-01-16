@@ -57,9 +57,3 @@ public class BillingSqls {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 """;
 }
-
-
-
-
-
-
