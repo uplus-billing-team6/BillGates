@@ -24,7 +24,7 @@ public class BillingResponseDto {
         private Long amount;
     }
     
-    // 2번 정산 결과 조회 시퀀스 조회용 변환 메서드 작성 요청
+    // 2번 정산 결과 조회 시퀀스 조회용 변환 메서드 작성 요청 of 메서드 사용중
     public static BillingResponseDto of(Billing billing, List<BillingItem> items) {
     	return null;
     }
