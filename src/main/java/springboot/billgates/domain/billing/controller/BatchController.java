@@ -1,8 +1,8 @@
 package springboot.billgates.domain.billing.controller;
 
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
@@ -10,16 +10,20 @@ import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import springboot.billgates.domain.batch.BatchStatusDto;
 import springboot.billgates.domain.billing.dto.BillingBatchRequest;
 import springboot.billgates.domain.billing.service.BatchService;
 import springboot.billgates.global.Response;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @Slf4j
 @RestController
@@ -46,5 +50,10 @@ public class BatchController {
         data.put("status", execution.getStatus().toString());
 
         return ResponseEntity.ok(Response.success("Batch Started", data));
+    }
+    // 배치 상태 조회 시퀀스
+    @GetMapping("/status")
+    public ResponseEntity<Response<BatchStatusDto>> getBatchStatus(@RequestParam("month") String billingMonth) {
+        return null;
     }
 }
