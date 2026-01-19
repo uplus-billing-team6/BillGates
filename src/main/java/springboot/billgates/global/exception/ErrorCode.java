@@ -17,6 +17,9 @@ public enum ErrorCode {
     ENCRYPTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR ,"데이터 암호화 처리 중 오류가 발생했습니다."),
     DECRYPTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "데이터 복호화 처리 중 오류가 발생했습니다."),
 
+    // Redis 관련
+    REDIS_LOCK_FAILED(HttpStatus.CONFLICT, "이미 실행 중인 배치입니다. (중복 실행 방지)"),
+
     ;
     private final HttpStatus status;
     private final String message;

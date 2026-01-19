@@ -32,23 +32,27 @@ public class BatchRecoveryService {
      */
     @Transactional
     protected void cleanupZombieJob(String billingMonth) {
+        // 1. DB상으로는 실행 중 이라고 (STARTED) 나오는 놈들을 찾음
         Set<JobExecution> runningExecutions = jobExplorer.findRunningJobExecutions("billingJob");
 
         for (JobExecution execution : runningExecutions) {
             if (billingMonth.equals(execution.getJobParameters().getString("billingMonth"))) {
-                // 실행중인 스레드 중지 시도
+
+                // [방어 로직] 혹시라도 진짜 살아있는 스레드라면 정지 신호 보냄
                 try {
                     jobOperator.stop(execution.getJobId());
                 } catch (Exception e) {
-                    log.warn("Job stop failed: {}", e.getMessage());
+                    // 이미 죽은 프로세스라면 여기서 에러가 나거나 무시됨 (정상)
+                    log.warn("Job stop failed (process might be already dead): {}", e.getMessage());
                 }
 
                 // 1. 해당 좀비 Job 상태 변경
                 execution.setStatus(BatchStatus.FAILED);
                 execution.setExitStatus(new ExitStatus("FAILED", "Force stopped by API"));
                 execution.setEndTime(LocalDateTime.now());
-            }
+                jobRepository.update(execution);
 
+            }
             // 2. 해당 Job 의 하위 Step 들도 찾아서 모두 실패 처리
             for (StepExecution stepExecution : execution.getStepExecutions()) {
                 if (stepExecution.getStatus() == BatchStatus.STARTED) {
@@ -58,11 +62,9 @@ public class BatchRecoveryService {
                     jobRepository.update(stepExecution);
                 }
             }
-            // 3. DB 업데이트
-            jobRepository.update(execution);
         }
 
-        // 2. Redis 락 "강제" 해제
+        // 3. Redis 락 "강제" 해제
         // Listener는 본인 토큰(UUID)을 확인하지만,
         // RecoveryService는 "강제 집행(Force)"이므로 토큰 확인 없이 Key를 바로 날려버립니다.
         String lockKey = "LOCK:billingJob:" + billingMonth;

@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import springboot.billgates.global.exception.CustomException;
+import springboot.billgates.global.exception.ErrorCode;
 
 @Slf4j
 @Component
@@ -45,7 +47,7 @@ public class JobLockListener implements JobExecutionListener {
         if (isLocked == null || !isLocked) {
             log.warn(">>> 이미 실행 중인 배치입니다. (Key: {})", lockKey);
             // 예외를 던져서 Job 실행 자체를 막음
-            throw new IllegalStateException("중복 실행 방지: 이미 실행 중인 배치입니다.");
+            throw new CustomException(ErrorCode.REDIS_LOCK_FAILED);
         }
         
         // 해제(afterJob) 때 확인하기 위해 ExecutionContext에 토큰 저장
