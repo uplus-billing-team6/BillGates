@@ -60,7 +60,7 @@ public class BillingJobConfig {
     public Job billingJob() {
         return new JobBuilder("billingJob", jobRepository)
             .start(billingStep())
-            //.listener(jobLockListener)
+            .listener(jobLockListener)
             .build();
     }
 
