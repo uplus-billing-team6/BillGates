@@ -44,7 +44,6 @@ public class BillingJobConfig {
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
     private final JobLockListener jobLockListener;
-    private final ApplicationEventPublisher eventPublisher;
 
     private static final int CHUNK_SIZE = 1000;
 
