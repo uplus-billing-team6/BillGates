@@ -36,7 +36,7 @@ public class BillingSqls {
         """;
 
     public static final String SELECT_JOINED_DATA = """
-        SELECT m.member_id, i.category, i.name as item_name, u.amount
+        SELECT m.member_id, m.email, i.category, i.name as item_name, u.amount
         FROM MEMBER m
         JOIN USAGE_HISTORY u ON m.member_id = u.member_id
         JOIN ITEM i ON u.item_id = i.item_id 
