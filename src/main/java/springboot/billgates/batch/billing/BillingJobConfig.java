@@ -229,9 +229,10 @@ public class BillingJobConfig {
                     .templateCode(1L)
                     .createdAt(LocalDateTime.now())
                     .build();
-                String email = "test@test.1";
+                String email = pack.getEmail();
 
-                eventPublisher.publishEvent(new MessageCreatedEvent(message, pack, email));
+                // kafka 연동
+                //eventPublisher.publishEvent(new MessageCreatedEvent(message, pack, email));
             }
 
             jdbcTemplate.batchUpdate(BillingSqls.INSERT_BILLING, billingArgs);
