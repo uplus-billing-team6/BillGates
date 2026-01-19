@@ -56,7 +56,8 @@ public class KafkaProducerConfig {
         // → Producer가 자동으로 sequence number 관리
 
         // 6. Acks (확인 수준)
-        config.put(ProducerConfig.ACKS_CONFIG, "1");  // Leader만 확인
+        config.put(ProducerConfig.ACKS_CONFIG, "all");  // Leader만 확인
+        config.put(ProducerConfig.RETRIES_CONFIG, 10); // 재시도횟수
         // 설명:
         // "0": 확인 안 함 (가장 빠름, 유실 가능)
         // "1": Leader 확인 (균형) ← 추천

@@ -10,6 +10,7 @@ import java.util.List;
 @Getter
 @Builder
 public class BillingPack {
+    private String email;
     private Billing billing;
     private List<BillingItem> items;
 }

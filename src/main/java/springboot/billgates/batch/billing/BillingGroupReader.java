@@ -32,6 +32,8 @@ public class BillingGroupReader implements ItemStreamReader<BillingPack> {
 
         // 2. 현재 처리할 회원 ID 기준 잡기
         Long currentMemberId = cachedRow.getMemberId();
+        String currentEmail = cachedRow.getEmail();
+
         List<BillingItem> items = new ArrayList<>();
         long totalAmount = 0;
 
@@ -68,6 +70,7 @@ public class BillingGroupReader implements ItemStreamReader<BillingPack> {
                                  .build();
 
         return BillingPack.builder()
+                          .email(currentEmail)
                           .billing(billing)
                           .items(items)
                           .build();
