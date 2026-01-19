@@ -1,6 +1,9 @@
 package springboot.billgates.kafka.controller;
 
+//import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.log;
+
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -9,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import springboot.billgates.entity.Message;
+import springboot.billgates.kafka.dto.NotificationEvent;
 import springboot.billgates.kafka.producer.NotificationProducer;
 import springboot.billgates.kafka.service.NotificationEventMapper;
 import springboot.billgates.repository.MessageRepository;
@@ -24,7 +28,7 @@ public class MessageBasedKafkaTestController {
     private final NotificationEventMapper eventMapper;
 
     /**
-     * MESSAGE 테이블 기준 Kafka 발송 테스트
+     * MESSAGE 테이블 기준 Kafka 발송 테스트 (Batch)
      */
     @GetMapping("/send-from-message")
     public String sendFromMessage() {
@@ -35,12 +39,13 @@ public class MessageBasedKafkaTestController {
             return "READY 상태 MESSAGE 없음";
         }
 
-        messages.forEach(message -> {
-            log.info("[TEST] MESSAGE 기준 발송 messageId={}", message.getMessageId());
+        List<NotificationEvent> events = messages.stream()
+                .map(eventMapper::toEvent)
+                .collect(Collectors.toList());
 
-            notificationProducer.send(
-                    eventMapper.toEvent(message)
-            );
+        events.forEach(event -> {
+            log.info("[TEST] MESSAGE 기준 발송 messageId={}", event.getMessageId());
+            notificationProducer.send(event);
         });
 
         return "MESSAGE 기준 Kafka 발송 완료 (" + messages.size() + "건)";
