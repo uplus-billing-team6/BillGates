@@ -31,53 +31,20 @@ public class BatchController {
 
     @PostMapping("/run")
     public ResponseEntity<Response<Map<String, Object>>> runBatch(
-        @Valid @RequestBody BillingBatchRequest request,
-        BindingResult bindingResult
-    ) {
-        // Validation Error
-        if (bindingResult.hasErrors()) {
-            return ResponseEntity.badRequest()
-                                 .body(Response.fail(bindingResult.getFieldError().getDefaultMessage()));
-        }
+        @Valid @RequestBody BillingBatchRequest request
+    ) throws Exception {
+        // Service 호출
+        JobExecution execution = billingBatchService.runBillingJob(
+            request.getBillingMonth(),
+            request.isForce()
+        );
 
-        try {
-            // Service 호출
-            JobExecution execution = billingBatchService.runBillingJob(
-                request.getBillingMonth(),
-                request.isForce()
-            );
+        // 성공 응답 생성
+        Map<String, Object> data = new HashMap<>();
+        data.put("billingMonth", request.getBillingMonth());
+        data.put("jobExecutionId", execution.getId());
+        data.put("status", execution.getStatus().toString());
 
-            // 성공 응답 생성
-            Map<String, Object> data = new HashMap<>();
-            data.put("billingMonth", request.getBillingMonth());
-            data.put("jobExecutionId", execution.getId());
-            data.put("status", execution.getStatus().toString());
-
-            return ResponseEntity.ok(Response.success("Batch Started", data));
-
-        } catch (IllegalStateException e) {
-            // 이미 실행중인 job 을 또 실행하려는 경우 (단, force=false). 중복 batch 방지 (409 Conflict)
-            log.error("Batch Execution Error", e);
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                                 .body(Response.fail("현재 배치가 실행 중입니다. 재실행 하려면 force=true 옵션을 사용하세요."));
-
-        } catch (JobInstanceAlreadyCompleteException e) {
-            // 이미 완료된 Job 처리 (409 Conflict)
-            log.error("Batch Execution Error", e);
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                                 .body(Response.fail("이미 완료된 배치입니다."));
-
-        } catch (JobExecutionAlreadyRunningException | JobRestartException e) {
-            // batch 도중 실패한 job 이고, force=false 일때
-            log.error("Batch Execution Error", e);
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                                 .body(Response.fail("이전 실패 기록이 존재합니다. 처음부터 다시 실행하려면 force=true 옵션을 사용하세요."));
-
-        } catch (Exception e) {
-            // 그 외 예외처리
-            log.error("Batch Execution Error", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                 .body(Response.fail("배치 실행 중 오류 발생: " + e.getMessage()));
-        }
+        return ResponseEntity.ok(Response.success("Batch Started", data));
     }
 }
