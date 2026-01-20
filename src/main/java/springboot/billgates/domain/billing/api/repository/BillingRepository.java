@@ -1,10 +1,9 @@
-package springboot.billgates.domain.billing.repository;
+package springboot.billgates.domain.billing.api.repository;
 
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-
-import springboot.billgates.domain.billing.entity.Billing;
+import springboot.billgates.entity.Billing;
 
 public interface BillingRepository extends JpaRepository<Billing, Long>{
 

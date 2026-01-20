@@ -1,4 +1,4 @@
-package springboot.billgates.domain.billing.sql;
+package springboot.billgates.domain.billing.batch.sql;
 
 public class BillingSqls {
     public static final String SELECT_MEMBERS = "SELECT member_id, name, email, phone_number FROM MEMBER";

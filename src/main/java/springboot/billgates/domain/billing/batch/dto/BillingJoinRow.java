@@ -1,4 +1,4 @@
-package springboot.billgates.batch.billing.dto;
+package springboot.billgates.domain.billing.batch.dto;
 
 import lombok.Data;
 

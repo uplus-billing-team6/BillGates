@@ -1,4 +1,4 @@
-package springboot.billgates.domain.billing.service;
+package springboot.billgates.domain.billing.batch.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,4 +1,4 @@
-//package springboot.billgates.batch.billing.service;
+//package springboot.billgates.domain.billing.batch.service;
 //
 //import lombok.RequiredArgsConstructor;
 //import lombok.extern.slf4j.Slf4j;
@@ -7,7 +7,7 @@
 //import org.springframework.jdbc.support.GeneratedKeyHolder;
 //import org.springframework.jdbc.support.KeyHolder;
 //import org.springframework.stereotype.Service;
-//import springboot.billgates.batch.billing.dto.BillingPack;
+//import springboot.billgates.domain.billing.batch.dto.BillingPack;
 //import springboot.billgates.domain.billing.entity.Message;
 //import springboot.billgates.domain.billing.sql.BillingSqls;
 //import springboot.billgates.event.MessageCreatedEvent;

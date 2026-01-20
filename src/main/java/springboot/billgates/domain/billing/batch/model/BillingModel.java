@@ -1,4 +1,4 @@
-package springboot.billgates.domain.billing.entity;
+package springboot.billgates.domain.billing.batch.model;
 
 import lombok.*;
 import java.time.LocalDateTime;
@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Billing {
+public class BillingModel {
     private Long billingId;     
     private Long memberId;
     private String billingMonth; 

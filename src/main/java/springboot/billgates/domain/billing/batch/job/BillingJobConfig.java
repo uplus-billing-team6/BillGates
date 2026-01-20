@@ -1,4 +1,4 @@
-package springboot.billgates.batch.billing;
+package springboot.billgates.domain.billing.batch.job;
 
 import io.hypersistence.tsid.TSID;
 import lombok.RequiredArgsConstructor;
@@ -14,18 +14,16 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcCursorItemReader;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
-import springboot.billgates.batch.billing.dto.BillingPack;
-import springboot.billgates.batch.billing.listener.JobLockListener;
-import springboot.billgates.batch.billing.dto.BillingJoinRow;
-import springboot.billgates.domain.billing.entity.BillingItem;
-import springboot.billgates.domain.billing.entity.Message;
-import springboot.billgates.domain.billing.sql.BillingSqls;
-import springboot.billgates.event.MessageCreatedEvent;
+import springboot.billgates.domain.billing.batch.dto.BillingPack;
+import springboot.billgates.domain.billing.batch.listener.JobLockListener;
+import springboot.billgates.domain.billing.batch.dto.BillingJoinRow;
+import springboot.billgates.domain.billing.batch.model.BillingItemModel;
+import springboot.billgates.domain.billing.batch.model.MessageModel;
+import springboot.billgates.domain.billing.batch.sql.BillingSqls;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;
@@ -195,7 +193,7 @@ public class BillingJobConfig {
                     Timestamp.valueOf(pack.getBilling().getCreatedAt())
                 });
                 if (!pack.getItems().isEmpty()) {
-                    for (BillingItem item : pack.getItems()) {
+                    for (BillingItemModel item : pack.getItems()) {
                         itemArgs.add(new Object[] {
                             billingId, // 위에서 생성한 billingId를 그대로 사용
                             item.getCategory(),
@@ -219,15 +217,15 @@ public class BillingJobConfig {
                     1L                                  // template_code (요청: 1L)
                 });
 
-                Message message = Message.builder()
-                    .messageId(messageId)
-                    .memberId(pack.getBilling().getMemberId())
-                    .billingId(billingId)
-                    .channel("EMAIL")
-                    .status("READY")
-                    .templateCode(1L)
-                    .createdAt(LocalDateTime.now())
-                    .build();
+                MessageModel message = MessageModel.builder()
+                                                   .messageId(messageId)
+                                                   .memberId(pack.getBilling().getMemberId())
+                                                   .billingId(billingId)
+                                                   .channel("EMAIL")
+                                                   .status("READY")
+                                                   .templateCode(1L)
+                                                   .createdAt(LocalDateTime.now())
+                                                   .build();
                 String email = pack.getEmail();
 
                 // kafka 연동

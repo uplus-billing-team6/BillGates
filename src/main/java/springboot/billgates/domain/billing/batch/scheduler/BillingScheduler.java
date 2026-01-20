@@ -1,4 +1,4 @@
-package springboot.billgates.batch.scheduler;
+package springboot.billgates.domain.billing.batch.scheduler;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;

@@ -6,8 +6,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-import springboot.billgates.batch.billing.dto.BillingPack;
-import springboot.billgates.domain.billing.entity.BillingItem;
+import springboot.billgates.domain.billing.batch.dto.BillingPack;
+import springboot.billgates.domain.billing.batch.model.BillingItemModel;
 import springboot.billgates.event.MessageCreatedEvent;
 import springboot.billgates.kafka.dto.NotificationEvent;
 import springboot.billgates.kafka.producer.NotificationProducer;
@@ -58,7 +58,7 @@ public class MessageEventListener {
         content.append("총 청구 금액: ").append(pack.getBilling().getTotalAmount()).append("원\n\n");
         content.append("상세 내역:\n");
 
-        for (BillingItem item : pack.getItems()) {
+        for (BillingItemModel item : pack.getItems()) {
             content.append("- ").append(item.getItemName())
                     .append(": ").append(item.getAmount()).append("원\n");
         }

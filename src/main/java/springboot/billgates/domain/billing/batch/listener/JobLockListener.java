@@ -1,4 +1,4 @@
-package springboot.billgates.batch.billing.listener;
+package springboot.billgates.domain.billing.batch.listener;
 
 import java.time.Duration;
 import java.util.Collections;

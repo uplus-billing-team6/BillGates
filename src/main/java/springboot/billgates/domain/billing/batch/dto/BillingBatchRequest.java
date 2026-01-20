@@ -1,4 +1,4 @@
-package springboot.billgates.domain.billing.dto;
+package springboot.billgates.domain.billing.batch.dto;
 
 import jakarta.validation.constraints.Pattern;
 import lombok.Getter;

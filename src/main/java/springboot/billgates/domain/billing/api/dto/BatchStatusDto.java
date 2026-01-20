@@ -1,4 +1,4 @@
-package springboot.billgates.domain.batch;
+package springboot.billgates.domain.billing.api.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

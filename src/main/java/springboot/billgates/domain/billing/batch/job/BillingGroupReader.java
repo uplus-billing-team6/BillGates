@@ -1,10 +1,10 @@
-package springboot.billgates.batch.billing;
+package springboot.billgates.domain.billing.batch.job;
 
 import org.springframework.batch.item.*;
-import springboot.billgates.batch.billing.dto.BillingPack;
-import springboot.billgates.batch.billing.dto.BillingJoinRow;
-import springboot.billgates.domain.billing.entity.Billing;
-import springboot.billgates.domain.billing.entity.BillingItem;
+import springboot.billgates.domain.billing.batch.dto.BillingPack;
+import springboot.billgates.domain.billing.batch.dto.BillingJoinRow;
+import springboot.billgates.domain.billing.batch.model.BillingModel;
+import springboot.billgates.domain.billing.batch.model.BillingItemModel;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -34,17 +34,17 @@ public class BillingGroupReader implements ItemStreamReader<BillingPack> {
         Long currentMemberId = cachedRow.getMemberId();
         String currentEmail = cachedRow.getEmail();
 
-        List<BillingItem> items = new ArrayList<>();
+        List<BillingItemModel> items = new ArrayList<>();
         long totalAmount = 0;
 
         // 3. 같은 회원이면 계속 읽어서 리스트에 담기 (Grouping)
         while (cachedRow != null && cachedRow.getMemberId().equals(currentMemberId)) {
             // 사용 내역 변환 및 추가
-            items.add(BillingItem.builder()
-                                 .category(cachedRow.getCategory())
-                                 .itemName(cachedRow.getItemName())
-                                 .amount(cachedRow.getAmount())
-                                 .build());
+            items.add(BillingItemModel.builder()
+                                      .category(cachedRow.getCategory())
+                                      .itemName(cachedRow.getItemName())
+                                      .amount(cachedRow.getAmount())
+                                      .build());
 
             totalAmount += cachedRow.getAmount();
 
@@ -62,12 +62,12 @@ public class BillingGroupReader implements ItemStreamReader<BillingPack> {
             // 하지만 여기서는 Writer 로직 유지를 위해 그대로 생성.
         }
 
-        Billing billing = Billing.builder()
-                                 .memberId(currentMemberId)
-                                 .billingMonth(billingMonth)
-                                 .totalAmount(totalAmount)
-                                 .createdAt(LocalDateTime.now())
-                                 .build();
+        BillingModel billing = BillingModel.builder()
+                                           .memberId(currentMemberId)
+                                           .billingMonth(billingMonth)
+                                           .totalAmount(totalAmount)
+                                           .createdAt(LocalDateTime.now())
+                                           .build();
 
         return BillingPack.builder()
                           .email(currentEmail)
