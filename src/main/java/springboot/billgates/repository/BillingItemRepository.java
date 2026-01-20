@@ -9,4 +9,6 @@ import springboot.billgates.entity.BillingItem;
 public interface BillingItemRepository extends JpaRepository<BillingItem, Long> {
 
     List<BillingItem> findByBillingId(Long billingId);
+    List<BillingItem> findAllByBillingId(Long billingId);
+
 }
