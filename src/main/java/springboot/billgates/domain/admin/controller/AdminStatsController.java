@@ -1,5 +1,6 @@
 package springboot.billgates.domain.admin.controller;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,10 +17,11 @@ import springboot.billgates.global.Response;
 public class AdminStatsController {
 	private final StatsService statsService;
 	
-	// 메세지 시퀀스 발송  결과 통계 (1. get 요청)
+	// 메세지 시퀀스 발송  결과 통계
 	@GetMapping("/notification")
-	public Response<NotificationStatsDto> getNotificationStats(@RequestParam String month){
-		// 배치 상태 조회 시퀀스 다이어그램에 "1. get에 대응하는 코드 작성
-		return null;
+	public ResponseEntity<Response<NotificationStatsDto>> getNotificationStats(@RequestParam String month){
+		return ResponseEntity.ok(
+			Response.success("", statsService.getNotificationStats(month))
+		);
 	}
 }
