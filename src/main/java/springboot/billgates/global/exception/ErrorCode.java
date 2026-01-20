@@ -20,6 +20,9 @@ public enum ErrorCode {
     // Redis 관련
     REDIS_LOCK_FAILED(HttpStatus.CONFLICT, "이미 실행 중인 배치입니다. (중복 실행 방지)"),
 
+    // Billing API 관련
+    BILLING_NO_EXISTS(HttpStatus.NOT_FOUND, "존재하지 않는 청구 내역입니다.")
+
     ;
     private final HttpStatus status;
     private final String message;
