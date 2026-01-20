@@ -7,8 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import springboot.billgates.domain.admin.dto.DummyDataRequest;
+import springboot.billgates.global.utils.EncryptUtils;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 public class AdminDataService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final EncryptUtils encryptUtils;
 
     // batch size 설정
     private static final int BATCH_SIZE = 5000;
@@ -54,7 +55,7 @@ public class AdminDataService {
     };
 
     @Async("dummyDataExecutor")
-    @Transactional
+    // @Transactional // 대량 배치 성능을 위해 제거
     public void generateDummyData(DummyDataRequest request) {
         long startTime = System.currentTimeMillis();
         log.info(">>> [Admin] 더미 데이터 생성 작업을 시작합니다. (목표 Member: {}명, Usage: {}건)", request.getMemberCount(), request.getUsageCount());
@@ -107,19 +108,63 @@ public class AdminDataService {
         // 1. 시작 ID는 항상 1
         long startId = 1;
 
-        String sql = "INSERT INTO MEMBER (member_id, name, email, phone_number) VALUES (?, ?, ?, ?)";
+        String sql =
+            """
+            INSERT INTO MEMBER (member_id, name, email, phone_number, use_dnd, dnd_start_time, dnd_end_time) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """;
         List<Object[]> batchArgs = new ArrayList<>(BATCH_SIZE);
+
+        // [최적화] Random 객체를 루프 밖에서 한 번만 생성
+        Random random = ThreadLocalRandom.current();
 
         for (int i = 0; i < totalCount; i++) {
             long currentId = startId + i;
 
-            // 랜덤 데이터 생성
-            String name = generateRandomName();
-            String phoneNumber = generateRandomPhoneNumber();
-            String email = generateRandomEmail(currentId);
+            // 랜덤 데이터 생성 (random 파라미터 전달)
+            String name = generateRandomName(random);
+            String phoneNumber = generateRandomPhoneNumber(random);
+            String email = generateRandomEmail(currentId, random);
+
+            // 전화번호, 이메일 암호화
+            String encryptedPhoneNumber = encryptUtils.encrypt(phoneNumber);
+            String encryptedEmail = encryptUtils.encrypt(email);
+
+            // 방해금지 랜덤 데이터 생성
+            // 30% 확률로 방해금지 모드 사용
+            boolean useDnd = random.nextInt(100) < 30;
+            Object startTime = null;
+            Object endTime = null;
+
+            if (useDnd) {
+                // 시작 시간: 21시 ~ 01시 (21, 22, 23, 0, 1)
+                int startHour = 21 + random.nextInt(5);
+                if (startHour >= 24) startHour -= 24; // 24시 넘어가면 0시, 1시로 보정
+
+                // 종료 시간: 05시 ~ 09시
+                int endHour = 5 + random.nextInt(5);
+
+                // 분(minute)은 깔끔하게 0분 또는 랜덤
+                // java.sql.Time 또는 String("HH:mm:ss")으로 저장 가능
+                // 여기서는 java.sql.Time 사용 (JDBC 호환성 좋음)
+                // [성능 최적화] String.format 대신 문자열 결합 사용
+                String startStr = (startHour < 10 ? "0" : "") + startHour + ":00:00";
+                String endStr = (endHour < 10 ? "0" : "") + endHour + ":00:00";
+
+                startTime = java.sql.Time.valueOf(startStr);
+                endTime = java.sql.Time.valueOf(endStr);
+            }
 
             // 파라미터 추가
-            batchArgs.add(new Object[]{currentId, name, email, phoneNumber});
+            batchArgs.add(new Object[]{
+                currentId,
+                name,
+                encryptedEmail,
+                encryptedPhoneNumber,
+                useDnd,      // tinyint(1) -> boolean 매핑됨
+                startTime,   // Time or null
+                endTime      // Time or null
+            });
 
             // 배치 사이즈가 차거나 마지막 데이터면 DB에 전송
             if (batchArgs.size() == BATCH_SIZE || i == totalCount - 1) {
@@ -167,13 +212,16 @@ public class AdminDataService {
         List<Object[]> batchArgs = new ArrayList<>(BATCH_SIZE);
         long currentCount = 0;
 
+        // [최적화] Random 객체를 루프 밖에서 생성
+        Random random = ThreadLocalRandom.current();
+
         // --- Phase 1: 1인 1요금제 (PLAN) 할당 ---
         log.info(">>> Phase 1: 모든 회원에게 기본 요금제 할당 시작");
         List<ItemInfo> planItems = itemsByCategory.get("PLAN");
 
         for (long memberId = minMemberId; memberId <= maxMemberId; memberId++) {
-            ItemInfo plan = getRandomItem(planItems);
-            addUsageToBatch(batchArgs, usageIdCounter++, memberId, plan);
+            ItemInfo plan = getRandomItem(planItems, random);
+            addUsageToBatch(batchArgs, usageIdCounter++, memberId, plan, random);
             currentCount++;
 
             // 배치 실행
@@ -198,24 +246,24 @@ public class AdminDataService {
         List<ItemInfo> roamingItems = itemsByCategory.getOrDefault("ROAMING_PASS", new ArrayList<>());
 
         for (int i = 0; i < remainingCount; i++) {
-            long randomMemberId = ThreadLocalRandom.current().nextLong(minMemberId, maxMemberId + 1);
+            long randomMemberId = random.nextLong(minMemberId, maxMemberId + 1);
 
             // 카테고리 확률 선택 (소액결제 60%, 부가서비스 30%, 로밍 10%)
-            int rand = ThreadLocalRandom.current().nextInt(100);
+            int rand = random.nextInt(100);
             ItemInfo selectedItem;
 
             if (rand < 60 && !microItems.isEmpty()) {       // 0 ~ 59 (60%)
-                selectedItem = getRandomItem(microItems);
+                selectedItem = getRandomItem(microItems, random);
             } else if (rand < 90 && !addonItems.isEmpty()) { // 60 ~ 89 (30%)
-                selectedItem = getRandomItem(addonItems);
+                selectedItem = getRandomItem(addonItems, random);
             } else if (!roamingItems.isEmpty()) {            // 90 ~ 99 (10%)
-                selectedItem = getRandomItem(roamingItems);
+                selectedItem = getRandomItem(roamingItems, random);
             } else {
                 // 예외 시 소액결제 혹은 있는 것 중 아무거나
-                selectedItem = getRandomItem(microItems.isEmpty() ? planItems : microItems);
+                selectedItem = getRandomItem(microItems.isEmpty() ? planItems : microItems, random);
             }
 
-            addUsageToBatch(batchArgs, usageIdCounter++, randomMemberId, selectedItem);
+            addUsageToBatch(batchArgs, usageIdCounter++, randomMemberId, selectedItem, random);
 
             // 배치 실행
             if (batchArgs.size() >= BATCH_SIZE || i == remainingCount - 1) {
@@ -242,33 +290,31 @@ public class AdminDataService {
     }
 
     // 이름 조합 (성 + 이름)
-    private String generateRandomName() {
-        Random random = ThreadLocalRandom.current();
+    private String generateRandomName(Random random) {
         return LAST_NAMES[random.nextInt(LAST_NAMES.length)] +
             FIRST_NAMES[random.nextInt(FIRST_NAMES.length)];
     }
 
     // 전화번호 생성 (010-XXXX-YYYY)
-    private String generateRandomPhoneNumber() {
-        Random random = ThreadLocalRandom.current();
-        return String.format("010-%04d-%04d",
-            random.nextInt(10000), // 0 ~ 9999
-            random.nextInt(10000));
+    private String generateRandomPhoneNumber(Random random) {
+        // [성능 최적화] String.format 제거하고 단순 문자열 조합 사용
+        int middle = random.nextInt(1000, 10000); // 1000~9999 (4자리 보장)
+        int last = random.nextInt(1000, 10000);
+        return "010-" + middle + "-" + last;
     }
 
     // 이메일 생성 (memberId 기반으로 고유성 보장 + 랜덤 도메인)
-    private String generateRandomEmail(long memberId) {
-        Random random = ThreadLocalRandom.current();
+    private String generateRandomEmail(long memberId, Random random) {
         String prefix = ID_PREFIXES[random.nextInt(ID_PREFIXES.length)];
         String domain = EMAIL_DOMAINS[random.nextInt(EMAIL_DOMAINS.length)];
         return prefix + memberId + "@" + domain;
     }
 
     // Usage 파라미터 생성 및 리스트 추가 (날짜, 금액 계산 포함)
-    private void addUsageToBatch(List<Object[]> batchArgs, long usageId, long memberId, ItemInfo item) {
+    private void addUsageToBatch(List<Object[]> batchArgs, long usageId, long memberId, ItemInfo item, Random random) {
         //LocalDateTime randomDate = generateWideRandomDate();
-        LocalDateTime randomDate = generateDate();
-        long amount = calculateAmount(item);
+        LocalDateTime randomDate = generateDate(random);
+        long amount = calculateAmount(item, random);
         batchArgs.add(new Object[] {usageId, memberId, item.getItemId(), Timestamp.valueOf(randomDate), amount});
     }
 
@@ -284,16 +330,16 @@ public class AdminDataService {
     }
 
     // items 리스트에서 랜덤 상품 추출
-    private ItemInfo getRandomItem(List<ItemInfo> items) {
-        return items.get(ThreadLocalRandom.current().nextInt(items.size()));
+    private ItemInfo getRandomItem(List<ItemInfo> items, Random random) {
+        return items.get(random.nextInt(items.size()));
     }
 
     // 가격 결정 로직
-    private long calculateAmount(ItemInfo item) {
+    private long calculateAmount(ItemInfo item, Random random) {
         // 소액결제의 경우
         if ("MICRO_PAYMENT".equals(item.getCategory())) {
             // 1,000원 ~ 100,000원 사이 (100원 단위)
-            long randomVal = ThreadLocalRandom.current().nextLong(10, 1001); // 10 ~ 1000
+            long randomVal = random.nextLong(10, 1001); // 10 ~ 1000
             return randomVal * 100;
         }
         // 나머지의 경우. item 의 price 를 그대로 따라간다.
@@ -301,20 +347,20 @@ public class AdminDataService {
     }
 
     // 날짜 생성 로직 (1년 범위)
-    private LocalDateTime generateWideRandomDate() {
+    private LocalDateTime generateWideRandomDate(Random random) {
         // 현재로부터 1년(365일) 전 ~ 현재 사이 랜덤
-        long minutes = ThreadLocalRandom.current().nextLong(365 * 24 * 60);
+        long minutes = random.nextLong(365 * 24 * 60);
         return LocalDateTime.now().minusMinutes(minutes);
     }
 
     // 날짜 생성 로직 (특정 월 범위: 2025-04-01 00:00 ~ 2025-04-30 23:59)
-    private LocalDateTime generateDate() {
+    private LocalDateTime generateDate(Random random) {
         int year = 2025;
         int month = 4;
 
         LocalDateTime startOfMonth = LocalDateTime.of(year, month, 1, 0 ,0 ,0);
         int daysInMonth = startOfMonth.toLocalDate().lengthOfMonth();
-        long randomMinutes = ThreadLocalRandom.current().nextLong(daysInMonth * 24 * 60);
+        long randomMinutes = random.nextLong(daysInMonth * 24 * 60);
         return startOfMonth.plusMinutes(randomMinutes);
     }
 
