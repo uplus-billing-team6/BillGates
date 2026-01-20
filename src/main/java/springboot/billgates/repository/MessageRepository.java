@@ -1,20 +1,17 @@
 package springboot.billgates.repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 import springboot.billgates.entity.Message;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
-@Repository
 public interface MessageRepository extends JpaRepository<Message, Long> {
 
+    // 즉시 발송 대상
     List<Message> findByStatus(String status);
 
-    List<Message> findByStatusAndReservedAtBetween(
-            String status,
-            LocalDateTime start,
-            LocalDateTime end
-    );
+    // 즉시 발송 대상 (페이징)
+    Page<Message> findByStatus(String status, Pageable pageable);
 }
