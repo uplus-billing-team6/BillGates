@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import springboot.billgates.domain.billing.api.dto.BatchStatusDto;
+import springboot.billgates.domain.billing.api.dto.BatchStatusResponse;
 import springboot.billgates.domain.billing.api.dto.BillingResponse;
 import springboot.billgates.domain.billing.api.service.BillingService;
 import springboot.billgates.global.Response;
@@ -29,7 +29,11 @@ public class BillingController {
 
     // 배치 상태 조회 시퀀스
     @GetMapping("/status")
-    public ResponseEntity<Response<BatchStatusDto>> getBatchStatus(@RequestParam("month") String billingMonth) {
-        return null;
+    public ResponseEntity<Response<BatchStatusResponse>> getBatchStatus(
+        @RequestParam("month") String billingMonth
+    ) {
+        return ResponseEntity.ok(
+            Response.success("배치 상태 조회 성공", billingService.getBatchStatus(billingMonth))
+        );
     }
 }
