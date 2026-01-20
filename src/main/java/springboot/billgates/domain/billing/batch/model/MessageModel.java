@@ -15,9 +15,4 @@ public class MessageModel {
     private String status;
     private LocalDateTime createdAt;
     private Long templateCode;
-
-    // ID 세팅용 세터 (KeyHolder로 받아온 값 주입)
-    public void setMessageId(Long messageId) {
-        this.messageId = messageId;
-    }
 }

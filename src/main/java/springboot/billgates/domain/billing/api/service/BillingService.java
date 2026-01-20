@@ -8,12 +8,12 @@ import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.stereotype.Service;
 import springboot.billgates.domain.billing.api.dto.BatchStatusResponse;
 import springboot.billgates.domain.billing.api.dto.BillingResponse;
-import springboot.billgates.domain.billing.api.repository.BillingItemRepository;
 import springboot.billgates.domain.billing.api.repository.BillingRepository;
 import springboot.billgates.entity.Billing;
 import springboot.billgates.entity.BillingItem;
 import springboot.billgates.global.exception.CustomException;
 import springboot.billgates.global.exception.ErrorCode;
+import springboot.billgates.repository.BillingItemRepository;
 
 import java.util.List;
 import java.util.Set;
