@@ -1,10 +1,8 @@
 package springboot.billgates.kafka.controller;
 
-//import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.log;
-
-import java.util.List;
-import java.util.stream.Collectors;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,27 +25,56 @@ public class MessageBasedKafkaTestController {
     private final NotificationProducer notificationProducer;
     private final NotificationEventMapper eventMapper;
 
-    /**
-     * MESSAGE 테이블 기준 Kafka 발송 테스트 (Batch)
-     */
     @GetMapping("/send-from-message")
     public String sendFromMessage() {
 
-        List<Message> messages = messageRepository.findByStatus("READY");
+        int pageSize = 1000;  // 1천개씩 처리
+        int page = 0;
+        int totalSent = 0;
+        int successCount = 0;
+        int failCount = 0;
 
-        if (messages.isEmpty()) {
-            return "READY 상태 MESSAGE 없음";
+        log.info("[TEST] MESSAGE 기준 Kafka 발송 시작 (페이지 크기: {})", pageSize);
+
+        while (true) {
+            Pageable pageable = PageRequest.of(page, pageSize);
+            Page<Message> messagePage = messageRepository.findByStatus("READY", pageable);
+
+            if (messagePage.isEmpty()) {
+                break;
+            }
+
+            log.info("[TEST] 페이지 {}: {}건 처리 중", page, messagePage.getNumberOfElements());
+
+            for (Message message : messagePage.getContent()) {
+                try {
+                    NotificationEvent event = eventMapper.toEvent(message);
+                    notificationProducer.send(event);
+                    successCount++;
+                } catch (Exception e) {
+                    log.error("[TEST] 메시지 발송 실패 messageId={}", message.getMessageId(), e);
+                    failCount++;
+                }
+            }
+
+            totalSent += messagePage.getNumberOfElements();
+            page++;
+
+            // 진행률 로깅 (10페이지마다)
+            if (page % 10 == 0) {
+                log.info("[TEST] 진행 중: {}건 완료 (성공: {}, 실패: {})", totalSent, successCount, failCount);
+            }
+
+            // 마지막 페이지면 종료
+            if (!messagePage.hasNext()) {
+                break;
+            }
         }
 
-        List<NotificationEvent> events = messages.stream()
-                .map(eventMapper::toEvent)
-                .collect(Collectors.toList());
+        String result = String.format("MESSAGE 기준 Kafka 발송 완료 - 총: %d건, 성공: %d건, 실패: %d건",
+                totalSent, successCount, failCount);
+        log.info("[TEST] {}", result);
 
-        events.forEach(event -> {
-            log.info("[TEST] MESSAGE 기준 발송 messageId={}", event.getMessageId());
-            notificationProducer.send(event);
-        });
-
-        return "MESSAGE 기준 Kafka 발송 완료 (" + messages.size() + "건)";
+        return result;
     }
 }

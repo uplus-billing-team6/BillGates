@@ -1,69 +1,3 @@
-//package springboot.billgates.kafka.consumer;
-//
-//import jakarta.transaction.Transactional;
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.dao.DataIntegrityViolationException;
-//import org.springframework.kafka.annotation.KafkaListener;
-//import org.springframework.stereotype.Component;
-//import springboot.billgates.entity.MessageSendHistory;
-//import springboot.billgates.kafka.dto.NotificationEvent;
-//import springboot.billgates.repository.MessageSendHistoryRepository;
-//
-//import java.time.LocalDateTime;
-//import java.util.ArrayList;
-//import java.util.List;
-//
-//@Slf4j
-//@Component
-//@RequiredArgsConstructor
-//public class EmailNotificationConsumer {
-//
-//    private final MessageSendHistoryRepository historyRepository;
-//    private static final String CHANNEL = "EMAIL";
-//
-//    @Transactional
-//    @KafkaListener(
-//            topics = "notification-email",
-//            groupId = "email-group",
-//            containerFactory = "kafkaListenerContainerFactory"
-//    )
-//    public void consume(List<NotificationEvent> events) {
-//        if (events.isEmpty()) return;
-//
-//        log.info("[EMAIL] batch consume size={}", events.size());
-//        List<MessageSendHistory> histories = new ArrayList<>();
-//
-//        for (NotificationEvent event : events) {
-//            try {
-//                log.info("[EMAIL] send messageId={}", event.getMessageId());
-//                histories.add(MessageSendHistory.builder()
-//                        .messageId(event.getMessageId())
-//                        .channel(CHANNEL)
-//                        .success(true)
-//                        .sentAt(LocalDateTime.now())
-//                        .build());
-//            } catch (Exception e) {
-//                log.error("[EMAIL] send failed messageId={}", event.getMessageId(), e);
-//                histories.add(MessageSendHistory.builder()
-//                        .messageId(event.getMessageId())
-//                        .channel(CHANNEL)
-//                        .success(false)
-//                        .sentAt(LocalDateTime.now())
-//                        .build());
-//            }
-//        }
-//
-//        try {
-//            historyRepository.saveAll(histories); // batch insert
-//        } catch (DataIntegrityViolationException e) {
-//            log.info("[EMAIL] duplicate message ignored");
-//        }
-//    }
-//}
-
-
-
 package springboot.billgates.kafka.consumer;
 
 import jakarta.transaction.Transactional;
@@ -133,16 +67,16 @@ public class EmailNotificationConsumer {
             }
         }
 
-        // 🔥 JdbcTemplate batch insert
+        // 🔥 JdbcTemplate batch insert (중복 무시)
         try {
             jdbcTemplate.batchUpdate(
-                    "INSERT INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at) VALUES (?,?,?,?)",
+                    "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at) VALUES (?,?,?,?)",
                     batchArgs
             );
+            log.info("[EMAIL] Batch insert complete. size={}", batchArgs.size());
         } catch (Exception e) {
-            log.error("[EMAIL] batch insert failed", e);
+            log.error("[EMAIL] batch insert failed - 재시도를 위해 예외 throw", e);
+            throw new RuntimeException("EMAIL 메시지 히스토리 저장 실패", e);  // Kafka 재처리 유도
         }
-
-        log.info("[EMAIL] Batch insert complete. size={}", batchArgs.size());
     }
 }
