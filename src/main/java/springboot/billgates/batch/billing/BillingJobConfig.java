@@ -14,6 +14,7 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcCursorItemReader;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,7 +23,9 @@ import springboot.billgates.batch.billing.dto.BillingPack;
 import springboot.billgates.batch.billing.listener.JobLockListener;
 import springboot.billgates.batch.billing.dto.BillingJoinRow;
 import springboot.billgates.domain.billing.entity.BillingItem;
+import springboot.billgates.domain.billing.entity.Message;
 import springboot.billgates.domain.billing.sql.BillingSqls;
+import springboot.billgates.event.MessageCreatedEvent;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;
@@ -216,6 +219,19 @@ public class BillingJobConfig {
                     1L                                  // template_code (요청: 1L)
                 });
 
+                Message message = Message.builder()
+                    .messageId(messageId)
+                    .memberId(pack.getBilling().getMemberId())
+                    .billingId(billingId)
+                    .channel("EMAIL")
+                    .status("READY")
+                    .templateCode(1L)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+                String email = pack.getEmail();
+
+                // kafka 연동
+                //eventPublisher.publishEvent(new MessageCreatedEvent(message, pack, email));
             }
 
             jdbcTemplate.batchUpdate(BillingSqls.INSERT_BILLING, billingArgs);
