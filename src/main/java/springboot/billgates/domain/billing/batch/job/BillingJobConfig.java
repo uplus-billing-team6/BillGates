@@ -39,8 +39,8 @@ public class BillingJobConfig {
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
     private final JobLockListener jobLockListener;
-    private MessageTemplateProvider templateProvider;
-    private BillingMessageFormatter billingMessageFormatter;
+    private final MessageTemplateProvider templateProvider;
+    private final BillingMessageFormatter billingMessageFormatter;
 
     private static final int CHUNK_SIZE = 1000;
 
