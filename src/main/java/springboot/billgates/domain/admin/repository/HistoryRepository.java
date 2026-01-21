@@ -11,10 +11,10 @@ import springboot.billgates.entity.MessageSendHistory;
 
 public interface HistoryRepository extends JpaRepository<MessageSendHistory, Long> {
 
-//	@Query("SELECT h.isSuccess, COUNT(h) " +
-//	           "FROM MessageSendHistory h " +
-//	           "WHERE h.sentAt BETWEEN :start AND :end " +
-//	           "GROUP BY h.isSuccess")
-//	    List<Object[]> findStatsByPeriod(@Param("start") LocalDateTime start,
-//	                                     @Param("end") LocalDateTime end);
+	@Query("SELECT h.success, COUNT(h) " +
+	           "FROM MessageSendHistory h " +
+	           "WHERE h.sentAt BETWEEN :start AND :end " +
+	           "GROUP BY h.success")
+	    List<Object[]> findStatsByPeriod(@Param("start") LocalDateTime start,
+	                                     @Param("end") LocalDateTime end);
 }

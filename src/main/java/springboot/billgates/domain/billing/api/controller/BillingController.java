@@ -19,8 +19,8 @@ public class BillingController {
 
     @GetMapping
     public ResponseEntity<Response<BillingResponse>> getBillingResult(
-        @RequestParam Long memberId,
-        @RequestParam String month
+        @RequestParam("memberId") Long memberId,
+        @RequestParam("month") String month
     ) {
         return ResponseEntity.ok(
             Response.success("청구서 내역 확인 완료", billingService.getBillingResult(memberId, month))
