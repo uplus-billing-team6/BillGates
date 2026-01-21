@@ -1,5 +1,6 @@
 package springboot.billgates.domain.billing.batch.job;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.*;
 import springboot.billgates.domain.billing.batch.dto.BillingPack;
 import springboot.billgates.domain.billing.batch.dto.BillingJoinRow;
@@ -11,10 +12,13 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 public class BillingGroupReader implements ItemStreamReader<BillingPack> {
     private final ItemReader<BillingJoinRow> delegate; // DB에서 한 줄씩 읽어오는 진짜 Reader
     private BillingJoinRow cachedRow; // 다음 사람 데이터를 미리 읽었을 때 잠시 보관하는 변수
     private final String billingMonth; // 파라미터
+
+    private long startTime;
 
     public BillingGroupReader(ItemReader<BillingJoinRow> delegate, String billingMonth) {
         this.delegate = delegate;
@@ -87,6 +91,9 @@ public class BillingGroupReader implements ItemStreamReader<BillingPack> {
 
     @Override
     public void open(ExecutionContext executionContext) throws ItemStreamException {
+        this.startTime = System.currentTimeMillis();
+        log.info(">>> [BillingGroupReader] 데이터 읽기를 시작합니다. (Month: {})", billingMonth);
+
         if (this.delegate instanceof ItemStream) {
             ((ItemStream) this.delegate).open(executionContext);
         }
@@ -101,6 +108,12 @@ public class BillingGroupReader implements ItemStreamReader<BillingPack> {
 
     @Override
     public void close() throws ItemStreamException {
+        long endTime = System.currentTimeMillis();
+        long duration = endTime - this.startTime;
+
+        log.info(">>> [BillingGroupReader] 데이터 읽기 완료.");
+        log.info(">>> - 총 소요 시간: {} ms (약 {} 초)", duration, duration / 1000.0);
+
         if (this.delegate instanceof ItemStream) {
             ((ItemStream) this.delegate).close();
         }
