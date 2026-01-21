@@ -35,13 +35,25 @@ public class BillingSqls {
         
         """;
 
+    // 폰 번호, 방해금지여부, 금지 시작 시간, 금지 종료 시간 추가 조회 필요
     public static final String SELECT_JOINED_DATA = """
-        SELECT m.member_id, m.email, i.category, i.name as item_name, u.amount
+        SELECT
+           m.member_id,
+           m.email,
+           m.phone_number,
+           m.use_dnd,
+           m.dnd_start_time,
+           m.dnd_end_time,
+           i.category,
+           i.name AS item_name,
+           u.amount
         FROM MEMBER m
         JOIN USAGE_HISTORY u ON m.member_id = u.member_id
-        JOIN ITEM i ON u.item_id = i.item_id 
-        WHERE u.usage_date BETWEEN ? AND ?
-        ORDER BY m.member_id
+        JOIN ITEM i ON u.item_id = i.item_id
+        WHERE u.usage_date >= ?
+        AND u.usage_date < ?
+        ORDER BY m.member_id;
+            
     """;
 
     public static final String INSERT_MESSAGE = """
