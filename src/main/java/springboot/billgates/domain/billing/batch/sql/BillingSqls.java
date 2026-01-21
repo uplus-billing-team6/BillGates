@@ -65,7 +65,11 @@ public class BillingSqls {
         status, 
         reserved_at, 
         created_at, 
-        template_code
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        template_code,
+        title,
+        content,
+        email,
+        phone_number
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """;
 }

@@ -214,22 +214,26 @@ public class BillingJobConfig {
                     "READY",                            // status (요청: READY)
                     null,                               // reserved_at (지금은 일단 null)
                     LocalDateTime.now(),                // created_at
-                    1L                                  // template_code (요청: 1L)
+                    1L,                                  // template_code (요청: 1L)
+                    "title",
+                    "content",
+                    pack.getEmail(),
+                    pack.getPhoneNumber()
                 });
 
-                MessageModel message = MessageModel.builder()
-                                                   .messageId(messageId)
-                                                   .memberId(pack.getBilling().getMemberId())
-                                                   .billingId(billingId)
-                                                   .channel("EMAIL")
-                                                   .status("READY")
-                                                   .templateCode(1L)
-                                                   .createdAt(LocalDateTime.now())
-                                                   .build();
-                String email = pack.getEmail();
+//                MessageModel message = MessageModel.builder()
+//                                                   .messageId(messageId)
+//                                                   .memberId(pack.getBilling().getMemberId())
+//                                                   .billingId(billingId)
+//                                                   .channel("EMAIL")
+//                                                   .status("READY")
+//                                                   .templateCode(1L)
+//                                                   .email("")
+//                                                   .phoneNumber("")
+//                                                   .reservedAt(LocalDateTime.now())
+//                                                   .createdAt(LocalDateTime.now())
+//                                                   .build();
 
-                // kafka 연동
-                //eventPublisher.publishEvent(new MessageCreatedEvent(message, pack, email));
             }
 
             jdbcTemplate.batchUpdate(BillingSqls.INSERT_BILLING, billingArgs);

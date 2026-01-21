@@ -13,6 +13,11 @@ public class MessageModel {
     private Long billingId;
     private String channel;
     private String status;
+    private LocalDateTime reservedAt;
     private LocalDateTime createdAt;
+    private String email;
+    private String phoneNumber;
     private Long templateCode;
+    private String title;
+    private String content;
 }

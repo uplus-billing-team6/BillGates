@@ -6,6 +6,7 @@ import springboot.billgates.domain.billing.batch.dto.BillingJoinRow;
 import springboot.billgates.domain.billing.batch.model.BillingModel;
 import springboot.billgates.domain.billing.batch.model.BillingItemModel;
 
+import java.sql.Time;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +34,10 @@ public class BillingGroupReader implements ItemStreamReader<BillingPack> {
         // 2. 현재 처리할 회원 ID 기준 잡기
         Long currentMemberId = cachedRow.getMemberId();
         String currentEmail = cachedRow.getEmail();
+        String currentPhoneNumber = cachedRow.getPhoneNumber();
+        boolean useDnd = cachedRow.isUseDnd();
+        Time dndStartTime = cachedRow.getDndStartTime();
+        Time dndEndTime = cachedRow.getDndEndTime();
 
         List<BillingItemModel> items = new ArrayList<>();
         long totalAmount = 0;
@@ -71,6 +76,10 @@ public class BillingGroupReader implements ItemStreamReader<BillingPack> {
 
         return BillingPack.builder()
                           .email(currentEmail)
+                          .phoneNumber(currentPhoneNumber)
+                          .useDnd(useDnd)
+                          .dndStartTime(dndStartTime)
+                          .dndEndTime(dndEndTime)
                           .billing(billing)
                           .items(items)
                           .build();
