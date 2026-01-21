@@ -9,9 +9,9 @@ import java.util.List;
 
 public interface MessageRepository extends JpaRepository<Message, Long> {
 
-    // 즉시 발송 대상
+    // 기존 메서드 (유지)
     List<Message> findByStatus(String status);
-
-    // 즉시 발송 대상 (페이징)
     Page<Message> findByStatus(String status, Pageable pageable);
+
+    List<Message> findByStatusIn(List<String> statuses);
 }

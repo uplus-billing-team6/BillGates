@@ -1,12 +1,14 @@
 package springboot.billgates.kafka.consumer;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import springboot.billgates.entity.Message;
 import springboot.billgates.kafka.dto.NotificationEvent;
+import springboot.billgates.repository.MessageRepository;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -18,65 +20,40 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EmailNotificationConsumer {
 
-    private final JdbcTemplate jdbcTemplate; // 🔥 JdbcTemplate로 bulk insert
+    private final JdbcTemplate jdbcTemplate;
+    private final MessageRepository messageRepository;
 
     private static final String CHANNEL = "EMAIL";
 
-    /**
-     * Batch Kafka Consumer
-     */
     @Transactional
-    @KafkaListener(
-            topics = "notification-email",
-            groupId = "email-group",
-            containerFactory = "kafkaListenerContainerFactory" // batch listener factory
-    )
+    @KafkaListener(topics = "notification-email", groupId = "email-group", containerFactory = "kafkaListenerContainerFactory")
     public void consume(List<NotificationEvent> events) {
-
-        if (events.isEmpty()) {
-            return;
-        }
+        if (events.isEmpty()) return;
 
         log.info("[EMAIL] Batch consume size={}", events.size());
 
-        // JdbcTemplate batch insert 준비
-        List<Object[]> batchArgs = new ArrayList<>();
+        List<Object[]> historyArgs = new ArrayList<>();
+        List<Long> successMessageIds = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
 
         for (NotificationEvent event : events) {
-            try {
-                // TODO: 실제 이메일 발송 처리
-                log.info("[EMAIL] send messageId={}", event.getMessageId());
-
-                batchArgs.add(new Object[]{
-                        event.getMessageId(),
-                        CHANNEL,
-                        true,
-                        Timestamp.valueOf(now)
-                });
-
-            } catch (Exception e) {
-                log.error("[EMAIL] send failed messageId={}", event.getMessageId(), e);
-
-                batchArgs.add(new Object[]{
-                        event.getMessageId(),
-                        CHANNEL,
-                        false,
-                        Timestamp.valueOf(now)
-                });
-            }
+            historyArgs.add(new Object[]{event.getMessageId(), CHANNEL, true, Timestamp.valueOf(now)});
+            successMessageIds.add(event.getMessageId());
         }
 
-        // 🔥 JdbcTemplate batch insert (중복 무시)
-        try {
-            jdbcTemplate.batchUpdate(
-                    "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at) VALUES (?,?,?,?)",
-                    batchArgs
-            );
-            log.info("[EMAIL] Batch insert complete. size={}", batchArgs.size());
-        } catch (Exception e) {
-            log.error("[EMAIL] batch insert failed - 재시도를 위해 예외 throw", e);
-            throw new RuntimeException("EMAIL 메시지 히스토리 저장 실패", e);  // Kafka 재처리 유도
+      
+        if (!historyArgs.isEmpty()) {
+            jdbcTemplate.batchUpdate("INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at) VALUES (?,?,?,?)", historyArgs);
+        }
+
+        if (!successMessageIds.isEmpty()) {
+            String updateSql = "UPDATE MESSAGE SET status = 'COMPLETED' WHERE message_id = ?";
+            List<Object[]> updateArgs = new ArrayList<>();
+            for (Long id : successMessageIds) {
+                updateArgs.add(new Object[]{id});
+            }
+            jdbcTemplate.batchUpdate(updateSql, updateArgs);
+            log.info("[EMAIL] Status updated to COMPLETED for {} items", successMessageIds.size());
         }
     }
 }
