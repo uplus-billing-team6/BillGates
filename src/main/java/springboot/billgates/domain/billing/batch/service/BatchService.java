@@ -36,8 +36,8 @@ public class BatchService {
             throw new JobExecutionAlreadyRunningException("이미 배치가 실행 중입니다. (Month: " + billingMonth + ")");
         }
 
-        // 3. 실행 중이고 강제 실행이라면 -> 좀비 프로세스 정리 후 재실행
-        if (isRunning) {
+        // 3. 강제 실행이라면 -> 좀비 프로세스 정리 및 redis lock 해제 후 재실행
+        if (isForce) {
             log.warn(">>> [Force Run] Cleaning up zombie job for month: {}", billingMonth);
             batchRecoveryService.cleanupZombieJob(billingMonth);
         }
