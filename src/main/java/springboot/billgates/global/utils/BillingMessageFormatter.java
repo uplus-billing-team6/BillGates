@@ -52,6 +52,20 @@ public class BillingMessageFormatter {
 
         String result = templateDto.getBody();
 
+        String recipient = "";
+        String channel = templateDto.getChannel(); // "EMAIL" 또는 "SMS"
+        if ("EMAIL".equalsIgnoreCase(channel)) {
+            Object val = variables.get("email");
+            recipient = (val != null) ? String.valueOf(val) : "";
+        }
+        else if ("SMS".equalsIgnoreCase(channel)) {
+            Object val = variables.get("phoneNumber");
+            recipient = (val != null) ? String.valueOf(val) : "";
+        }
+        // 치환
+        result = result.replace("{recipient}", recipient);
+
+        // 나머지 변수 일괄 치환
         for (Map.Entry<String, Object> entry : variables.entrySet()) {
             String key = entry.getKey();
             Object valObj = entry.getValue();
