@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public class TemplateDto {
+    private final String channel;
     private final String title;
     private final String body;
 }
