@@ -16,38 +16,29 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-// 이메일 알림 Consumer
+// 카카오톡(예시) 알림 Consumer
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class EmailNotificationConsumer {
-
+public class KakaoNotificationConsumer {
     private final JdbcTemplate jdbcTemplate;
     private final MessageSenderFactory senderFactory;
 
-    private static final String CHANNEL = "EMAIL";
+    private static final String CHANNEL = "KAKAO";  // ← 변경
 
     @Transactional
-    @KafkaListener(topics = "notification-email", groupId = "email-group", containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(topics = "notification-kakao", groupId = "kakao-group")  // ← 변경
     public void consume(List<NotificationEvent> events) {
         if (events.isEmpty()) return;
 
         log.info("[{}] 배치 수신 - size={}", CHANNEL, events.size());
 
-        // Factory를 통해 적절한 MessageSender 획득
         MessageSender sender = senderFactory.getSender(CHANNEL);
-
-        // 실제 메시지 발송
         List<Long> successMessageIds = sender.sendBatch(events);
-
-        // 발송 히스토리 저장
         saveHistory(successMessageIds, CHANNEL);
-
-        // 메시지 상태 업데이트 (PROCESSING -> COMPLETED)
         updateMessageStatus(successMessageIds);
     }
 
-    // 발송 히스토리를 저장합니다.
     private void saveHistory(List<Long> messageIds, String channel) {
         if (messageIds.isEmpty()) return;
 
@@ -66,7 +57,6 @@ public class EmailNotificationConsumer {
         log.info("[{}] 히스토리 저장 완료 - {} 건", channel, historyArgs.size());
     }
 
-    // 메시지 상태를 COMPLETED로 업데이트합니다.
     private void updateMessageStatus(List<Long> messageIds) {
         if (messageIds.isEmpty()) return;
 
@@ -83,3 +73,4 @@ public class EmailNotificationConsumer {
         log.info("[{}] 상태 업데이트 완료 - COMPLETED {} 건", CHANNEL, updateArgs.size());
     }
 }
+

@@ -120,7 +120,7 @@ public class KafkaProducerConfig {
 
         // 🔥 안정성 (중요)
         config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
-        config.put(ProducerConfig.ACKS_CONFIG, "all"); // ✅ 필수
+        config.put(ProducerConfig.ACKS_CONFIG, "all");
         config.put(ProducerConfig.RETRIES_CONFIG, 3);
         config.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 5);
 

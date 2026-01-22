@@ -38,7 +38,7 @@ public class KafkaConsumerConfig {
         factory.setConsumerFactory(consumerFactory());
         factory.setBatchListener(true); // batch mode
 
-        factory.setConcurrency(6); // 🔥 안정성을 위해 조정 (12→6)
+        factory.setConcurrency(10); // 안정성을 위해 조정
 
         // Kafka offset commit 모드
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.BATCH);
