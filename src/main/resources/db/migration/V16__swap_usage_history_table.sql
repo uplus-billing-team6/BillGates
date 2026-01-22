@@ -1,0 +1,5 @@
+-- 목적: 무중단으로 파티션 테이블을 실제 테이블로 교체
+
+RENAME TABLE
+    USAGE_HISTORY TO USAGE_HISTORY_BACKUP,
+    USAGE_HISTORY_P TO USAGE_HISTORY;
