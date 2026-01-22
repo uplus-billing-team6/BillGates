@@ -2,22 +2,19 @@ package springboot.billgates.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
 import java.time.LocalDateTime;
 
 @Entity
-@Table(
-        name = "MESSAGE",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_billing_channel",
-                        columnNames = {"billing_id", "channel"}
-                )
-        }
-)
-@Data
+@Table(name = "MESSAGE")
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EntityListeners(AuditingEntityListener.class)
 public class Message {
 
     @Id
@@ -25,8 +22,9 @@ public class Message {
     @Column(name = "message_id")
     private Long messageId;
 
-    @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "member_id", nullable = false)
+    private Member member;
 
     @Column(name = "billing_id", nullable = false)
     private Long billingId;
@@ -40,9 +38,21 @@ public class Message {
     @Column(name = "reserved_at")
     private LocalDateTime reservedAt;
 
-    @Column(name = "created_at", nullable = false)
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "template_code", nullable = false)
     private Long templateCode;
+
+    @Column(name = "title", length = 255)
+    private String title;
+
+    @Column(name = "content", columnDefinition = "TEXT")
+    private String content;
+
+    // Mapper에서 편하게 쓰기 위한 헬퍼 메서드
+    public Long getMemberId() {
+        return member != null ? member.getMemberId() : null;
+    }
 }
