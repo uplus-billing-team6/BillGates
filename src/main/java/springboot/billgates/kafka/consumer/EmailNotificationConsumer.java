@@ -6,6 +6,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import springboot.billgates.domain.billing.batch.dto.TemplateDto;
+import springboot.billgates.global.utils.BillingMessageFormatter;
+import springboot.billgates.global.utils.MessageTemplateProvider;
 import springboot.billgates.kafka.dto.NotificationEvent;
 
 import java.sql.Timestamp;
@@ -20,57 +23,75 @@ import java.util.Random;
 public class EmailNotificationConsumer {
 
     private final JdbcTemplate jdbcTemplate;
-    private final Random random = new Random(); // 랜덤 실패 시뮬레이션용
+    private final Random random = new Random();
+    private final MessageTemplateProvider templateProvider;
+    private final BillingMessageFormatter messageFormatter;
 
     private static final String CHANNEL = "EMAIL";
+    private static final long TEMPLATE_ID = 1L; 
 
     @Transactional
     @KafkaListener(topics = "notification-email", groupId = "email-group", containerFactory = "kafkaListenerContainerFactory")
     public void consume(List<NotificationEvent> events) {
         if (events.isEmpty()) return;
 
-        log.info("[EMAIL] Batch consume size={}", events.size());
+        log.info("[EMAIL] Consume {} messages", events.size());
 
         List<Object[]> historyArgs = new ArrayList<>();
         List<Long> successMessageIds = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
 
+        TemplateDto template = templateProvider.getTemplateById(TEMPLATE_ID);
+
         for (NotificationEvent event : events) {
+            String finalTitle = "";
+            String finalBody = "";
+
             try {
-                // 🎲 [시뮬레이션] 1% 확률로 강제 에러 발생 (0~99 중 0이 나오면 꽝)
-                if (random.nextInt(100) == 0) {
-                    throw new RuntimeException("🔥 1% 확률의 이메일 전송 에러 당첨!");
-                }
+                // 1. 조립 (Rendering)
+                String rawJson = event.getContent(); 
+                String monthArg = event.getEmailTitle(); 
+                
+                finalTitle = messageFormatter.formatTitle(template, monthArg);
+                finalBody = messageFormatter.formatBody(template, rawJson);
 
-                // (여기서 실제 이메일 발송 로직 수행... 성공했다고 가정)
-                // emailSender.send(event);
+                // 2. 실패 시뮬레이션
+                if (random.nextInt(100) == 0) throw new RuntimeException("이메일 전송 실패");
 
-                // ✅ 성공 처리 준비
-                historyArgs.add(new Object[]{event.getMessageId(), CHANNEL, true, Timestamp.valueOf(now)});
+                // 3. 실제 전송 (주석)
+                // emailSender.send(event.getRecipient(), finalTitle, finalBody);
+
+                // 4. 성공 리스트 추가
                 successMessageIds.add(event.getMessageId());
+                
+                // ✅ History: 완성된 텍스트 저장
+                historyArgs.add(new Object[]{
+                    event.getMessageId(), CHANNEL, true, Timestamp.valueOf(now), finalTitle, finalBody
+                });
 
             } catch (Exception e) {
-                // 🚨 [Failover] 실패 시 SMS로 전환!
-                log.warn(">>> [이메일 실패 -> SMS 전환] ID={}. 사유: {}", event.getMessageId(), e.getMessage());
+                log.warn(">>> [이메일 실패 -> SMS 전환] ID={}", event.getMessageId());
 
-                // 1. 실패 이력 남기기
-                historyArgs.add(new Object[]{event.getMessageId(), CHANNEL, false, Timestamp.valueOf(now)});
+                // ✅ History: 실패했어도 '무슨 내용을 보내려 했는지' 텍스트 저장
+                historyArgs.add(new Object[]{
+                    event.getMessageId(), CHANNEL, false, Timestamp.valueOf(now), finalTitle, finalBody
+                });
 
-                // 2. DB 업데이트 (핵심): 채널을 'SMS'로, 상태를 'DEFERRED'로 변경
-                // 이렇게 해두면 1분 뒤 스케줄러가 SMS로 다시 가져갑니다.
                 jdbcTemplate.update(
-                        "UPDATE MESSAGE SET channel = 'SMS', status = 'DEFERRED' WHERE message_id = ?",
-                        event.getMessageId()
+                    "UPDATE MESSAGE SET channel = 'SMS', status = 'DEFERRED', reserved_at = DATE_ADD(NOW(), INTERVAL 1 MINUTE) WHERE message_id = ?",
+                    event.getMessageId()
                 );
             }
         }
 
-        // 📝 히스토리 일괄 저장
         if (!historyArgs.isEmpty()) {
-            jdbcTemplate.batchUpdate("INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at) VALUES (?,?,?,?)", historyArgs);
+            jdbcTemplate.batchUpdate(
+                "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) VALUES (?, ?, ?, ?, ?, ?)", 
+                historyArgs
+            );
         }
 
-        // ✅ 성공한 건들 상태 'COMPLETED'로 변경
+        // 성공 상태 업데이트
         if (!successMessageIds.isEmpty()) {
             String updateSql = "UPDATE MESSAGE SET status = 'COMPLETED' WHERE message_id = ?";
             List<Object[]> updateArgs = new ArrayList<>();

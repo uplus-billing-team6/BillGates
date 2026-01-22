@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
 import java.time.LocalDateTime;
 
 @Entity
@@ -49,9 +48,8 @@ public class Message {
     private String title;
 
     @Column(name = "content", columnDefinition = "TEXT")
-    private String content;
-
-    // Mapper에서 편하게 쓰기 위한 헬퍼 메서드
+    private String content; // JSON 데이터
+    
     public Long getMemberId() {
         return member != null ? member.getMemberId() : null;
     }
