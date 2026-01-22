@@ -17,9 +17,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import springboot.billgates.domain.billing.batch.dto.BillingJoinRow;
 import springboot.billgates.domain.billing.batch.dto.BillingPack;
 import springboot.billgates.domain.billing.batch.listener.JobLockListener;
-import springboot.billgates.domain.billing.batch.dto.BillingJoinRow;
 import springboot.billgates.domain.billing.batch.sql.BillingSqls;
 import springboot.billgates.global.utils.BillingMessageFormatter;
 import springboot.billgates.global.utils.MessageTemplateProvider;
@@ -102,6 +102,6 @@ public class BillingJobConfig {
      */
     @Bean
     public ItemWriter<BillingPack> billingCompositeWriter() {
-        return new BillingCompositeWriter(jdbcTemplate, templateProvider, billingMessageFormatter);
+        return new BillingCompositeWriter(jdbcTemplate);
     }
 }
