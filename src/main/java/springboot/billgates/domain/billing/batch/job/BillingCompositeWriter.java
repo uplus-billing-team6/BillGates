@@ -1,5 +1,6 @@
 package springboot.billgates.domain.billing.batch.job;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.hypersistence.tsid.TSID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -7,11 +8,8 @@ import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import springboot.billgates.domain.billing.batch.dto.BillingPack;
-import springboot.billgates.domain.billing.batch.dto.TemplateDto;
 import springboot.billgates.domain.billing.batch.model.BillingItemModel;
 import springboot.billgates.domain.billing.batch.sql.BillingSqls;
-import springboot.billgates.global.utils.BillingMessageFormatter;
-import springboot.billgates.global.utils.MessageTemplateProvider;
 
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -19,27 +17,19 @@ import java.text.DecimalFormat;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
 public class BillingCompositeWriter implements ItemWriter<BillingPack> {
 
     private final JdbcTemplate jdbcTemplate;
-    private final MessageTemplateProvider templateProvider;
-    private final BillingMessageFormatter messageFormatter;
-
-    private static final long TEMPLATE_CODE = 1L; // 고정 템플릿 ID
-    private TemplateDto cachedTemplate; // 템플릿 캐싱 변수
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public void write(Chunk<? extends BillingPack> chunk) {
-        // 1. 템플릿 로딩 (최초 1회만 실행)
-        if (cachedTemplate == null) {
-            this.cachedTemplate = templateProvider.getTemplateById(TEMPLATE_CODE);
-            log.info(">>> [Writer] Template Loaded: {}", cachedTemplate.getTitle());
-        }
-
         log.info(">>> [Writer] Saving Chunk... (Size: {} items)", chunk.getItems().size());
         long startTime = System.currentTimeMillis();
 
@@ -77,8 +67,20 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
             long messageId = TSID.fast().toLong();
             LocalDateTime reservedAt = calculateReservedTime(now, pack);
 
-            String finalTitle = messageFormatter.formatTitle(cachedTemplate.getTitle(), pack);
-            String finalBody = messageFormatter.formatBody(cachedTemplate.getBody(), pack);
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("email", pack.getEmail());
+            variables.put("phoneNumber", pack.getPhoneNumber());
+            variables.put("month", pack.getBilling().getBillingMonth());
+            variables.put("totalAmount", formatMoney(pack.getBilling().getTotalAmount()));
+            String itemListString = generateItemListString(pack.getItems());
+            variables.put("itemList", itemListString);
+
+            String jsonBody = "{}";
+            try {
+                jsonBody = objectMapper.writeValueAsString(variables);
+            } catch (Exception e){
+                log.error("Failed to convert variables to JSON. memberId: {}", pack.getBilling().getMemberId(), e);
+            }
 
             messageArgs.add(new Object[] {
                 messageId,
@@ -88,9 +90,9 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
                 "READY",
                 Timestamp.valueOf(reservedAt),
                 Timestamp.valueOf(now),
-                TEMPLATE_CODE,
-                finalTitle,
-                finalBody,
+                1L,
+                pack.getBilling().getBillingMonth(),
+                jsonBody,
                 pack.getEmail(),
                 pack.getPhoneNumber()
             });
@@ -150,5 +152,28 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
             }
         }
         return inDndTime ? targetTime : now;
+    }
+
+    private String formatMoney(long amount) {
+        return new DecimalFormat("#,###").format(amount);
+    }
+
+    private String generateItemListString(List<BillingItemModel> items) {
+        if (items == null || items.isEmpty()) {
+            return "- 상세 내역 없음";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < items.size(); i++) {
+            BillingItemModel item = items.get(i);
+            sb.append("- [")
+              .append(item.getCategory())
+              .append("] ")
+              .append(item.getItemName())
+              .append(": ")
+              .append(formatMoney(item.getAmount()))
+              .append("원\n");
+        }
+        return sb.toString().trim();
     }
 }

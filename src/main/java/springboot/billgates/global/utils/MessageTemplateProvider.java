@@ -18,10 +18,11 @@ public class MessageTemplateProvider {
      * ID로 템플릿 단건 조회
      */
     public TemplateDto getTemplateById(Long templateId) {
-        String sql = "SELECT title, body FROM MESSAGE_TEMPLATE WHERE template_id = ?";
+        String sql = "SELECT channel, title, body FROM MESSAGE_TEMPLATE WHERE template_id = ?";
 
         try {
             return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> new TemplateDto(
+                rs.getString("channel"),
                 rs.getString("title"),
                 rs.getString("body")
             ), templateId);
