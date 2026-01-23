@@ -4,16 +4,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.hypersistence.tsid.TSID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.core.annotation.BeforeStep;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.jdbc.core.JdbcTemplate;
+import springboot.billgates.domain.admin.repository.ReservationSettingRepository;
 import springboot.billgates.domain.billing.batch.dto.BillingPack;
 import springboot.billgates.domain.billing.batch.model.BillingItemModel;
 import springboot.billgates.domain.billing.batch.sql.BillingSqls;
+import springboot.billgates.entity.ReservationSetting;
 
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DecimalFormat;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -27,6 +32,22 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ReservationSettingRepository reservationSettingRepository;
+
+    private boolean isGlobalReservation;
+    private LocalDateTime cachedGlobalBaseTime;
+
+    @BeforeStep
+    public void beforeStep(StepExecution stepExecution) {
+        ReservationSetting setting =  reservationSettingRepository.findById(1L)
+            .orElse(ReservationSetting.builder()
+                .isReservationActive(false)
+                .build());
+        this.isGlobalReservation = setting.getIsReservationActive();
+        if (this.isGlobalReservation) {
+            this.cachedGlobalBaseTime = LocalDateTime.of(LocalDate.now(), setting.getReservationTime());
+        }
+    }
 
     @Override
     public void write(Chunk<? extends BillingPack> chunk) {
@@ -64,8 +85,9 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
             }
 
             // 3. Message 적재
+            LocalDateTime baseTime = this.isGlobalReservation ? this.cachedGlobalBaseTime : now;
             long messageId = TSID.fast().toLong();
-            LocalDateTime reservedAt = calculateReservedTime(now, pack);
+            LocalDateTime reservedAt = calculateReservedTime(baseTime, pack);
 
             Map<String, Object> variables = new HashMap<>();
             variables.put("email", pack.getEmail());
@@ -112,13 +134,13 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
      * 현재 시간이 사용자의 금지 시간대(Start ~ End)에 포함되면 -> End 시간으로 예약
      * 포함되지 않으면 -> 현재 시간(즉시 발송)
      */
-    private LocalDateTime calculateReservedTime(LocalDateTime now, BillingPack pack) {
+    private LocalDateTime calculateReservedTime(LocalDateTime baseTime, BillingPack pack) {
         // DnD 미사용자거나 정보가 없으면 즉시 return
         if (!pack.isUseDnd() || pack.getDndStartTime() == null || pack.getDndEndTime() == null) {
-            return now;
+            return baseTime;
         }
 
-        LocalTime currentTime = now.toLocalTime();
+        LocalTime currentTime = baseTime.toLocalTime();
         Time sqlStartTime = pack.getDndStartTime(); // java.sql.Time
         Time sqlEndTime = pack.getDndEndTime();     // java.sql.Time
 
@@ -126,7 +148,7 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
         LocalTime end = sqlEndTime.toLocalTime();
 
         boolean inDndTime = false;
-        LocalDateTime targetTime = now;
+        LocalDateTime targetTime = baseTime;
 
         // Case A: 자정을 걸치는 경우 (예: 22:00 ~ 07:00)
         if (start.isAfter(end)) {
@@ -135,11 +157,11 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
 
                 // 현재가 22시, 23시라면 -> 내일 07시
                 if (currentTime.isAfter(start)) {
-                    targetTime = now.plusDays(1).withHour(end.getHour()).withMinute(end.getMinute()).withSecond(0);
+                    targetTime = baseTime.plusDays(1).withHour(end.getHour()).withMinute(end.getMinute()).withSecond(0);
                 }
                 // 현재가 01시, 06시라면 -> 오늘 07시
                 else {
-                    targetTime = now.withHour(end.getHour()).withMinute(end.getMinute()).withSecond(0);
+                    targetTime = baseTime.withHour(end.getHour()).withMinute(end.getMinute()).withSecond(0);
                 }
             }
         }
@@ -147,11 +169,11 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
         else {
             if (currentTime.isAfter(start) && currentTime.isBefore(end)) {
                 inDndTime = true;
-                // 오늘 끝나는 시간으로 설정
-                targetTime = now.withHour(end.getHour()).withMinute(end.getMinute()).withSecond(0);
+                // 끝나는 시간으로 설정
+                targetTime = baseTime.withHour(end.getHour()).withMinute(end.getMinute()).withSecond(0);
             }
         }
-        return inDndTime ? targetTime : now;
+        return inDndTime ? targetTime : baseTime;
     }
 
     private String formatMoney(long amount) {

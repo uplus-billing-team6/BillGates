@@ -22,6 +22,9 @@ public class SmsNotificationConsumer {
     private final MessageSenderFactory senderFactory;
 
     private static final String CHANNEL = "SMS";
+    
+    // ⚠️ SMS용 템플릿 ID (만약 이메일과 다른 문구를 쓴다면 DB ID 확인 필요, 같으면 1L 유지)
+    private static final long TEMPLATE_ID = 2L; 
 
     @Transactional
     @KafkaListener(topics = "notification-sms", groupId = "sms-group", containerFactory = "kafkaListenerContainerFactory")

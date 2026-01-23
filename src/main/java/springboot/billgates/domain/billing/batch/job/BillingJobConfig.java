@@ -17,12 +17,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
+import springboot.billgates.domain.admin.repository.ReservationSettingRepository;
 import springboot.billgates.domain.billing.batch.dto.BillingJoinRow;
 import springboot.billgates.domain.billing.batch.dto.BillingPack;
 import springboot.billgates.domain.billing.batch.listener.JobLockListener;
 import springboot.billgates.domain.billing.batch.sql.BillingSqls;
-import springboot.billgates.global.utils.BillingMessageFormatter;
-import springboot.billgates.global.utils.MessageTemplateProvider;
 
 import javax.sql.DataSource;
 import java.sql.Timestamp;
@@ -39,8 +38,7 @@ public class BillingJobConfig {
     private final DataSource dataSource;
     private final JdbcTemplate jdbcTemplate;
     private final JobLockListener jobLockListener;
-    private final MessageTemplateProvider templateProvider;
-    private final BillingMessageFormatter billingMessageFormatter;
+    private final ReservationSettingRepository reservationSettingRepository;
 
     private static final int CHUNK_SIZE = 1000;
 
@@ -102,6 +100,6 @@ public class BillingJobConfig {
      */
     @Bean
     public ItemWriter<BillingPack> billingCompositeWriter() {
-        return new BillingCompositeWriter(jdbcTemplate);
+        return new BillingCompositeWriter(jdbcTemplate, reservationSettingRepository);
     }
 }
