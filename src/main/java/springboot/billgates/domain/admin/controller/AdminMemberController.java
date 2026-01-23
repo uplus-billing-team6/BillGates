@@ -16,7 +16,7 @@ import springboot.billgates.global.Response;
 @RequiredArgsConstructor
 public class AdminMemberController {
 
-	private MemberService memberService;
+	private final MemberService memberService;
 	
 	@GetMapping("/count")
     public ResponseEntity<Response<Map<String, Long>>> getMemberCount() {
