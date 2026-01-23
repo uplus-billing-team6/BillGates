@@ -64,12 +64,13 @@ public class AdminDataService {
             // 1. Member 데이터 생성
             if (request.getMemberCount() > 0) {
                 createMembers(request.getMemberCount());
+
+                createMemberDiscountPolicies();
             }
 
             // 2. Usage History 데이터 생성
             if (request.getUsageCount() > 0) {
                 createUsageHistories(request.getUsageCount());
-                createMemberDiscountPolicies();
             }
 
         } catch (Exception e) {
