@@ -12,19 +12,19 @@ import springboot.billgates.kafka.sender.MessageSenderFactory;
 
 import java.util.List;
 
-// SMS 알림 Consumer (확장 가능한 아키텍처)
+// 카카오톡 알림 Consumer (확장 가능한 아키텍처)
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class SmsNotificationConsumer {
+public class KakaoNotificationConsumer {
 
     private final JdbcTemplate jdbcTemplate;
     private final MessageSenderFactory senderFactory;
 
-    private static final String CHANNEL = "SMS";
+    private static final String CHANNEL = "KAKAO";
 
     @Transactional
-    @KafkaListener(topics = "notification-sms", groupId = "sms-group", containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(topics = "notification-kakao", groupId = "kakao-group", containerFactory = "kafkaListenerContainerFactory")
     public void consume(List<NotificationEvent> events) {
         if (events.isEmpty()) return;
 
@@ -55,3 +55,4 @@ public class SmsNotificationConsumer {
         log.info("[{}] 상태 업데이트 완료 - COMPLETED {} 건", CHANNEL, updateArgs.size());
     }
 }
+
