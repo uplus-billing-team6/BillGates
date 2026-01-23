@@ -57,8 +57,10 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, NotificationEvent> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
-        factory.setBatchListener(true); 
-        factory.setConcurrency(6); 
+        factory.setBatchListener(true); // batch mode
+        factory.setConcurrency(10); // 안정성을 위해 조정
+
+        // Kafka offset commit 모드
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.BATCH);
 
         return factory;
