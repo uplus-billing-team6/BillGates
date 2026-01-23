@@ -6,12 +6,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import springboot.billgates.domain.billing.batch.dto.TemplateDto;
 import springboot.billgates.global.utils.BillingMessageFormatter;
 import springboot.billgates.global.utils.EncryptUtils;
 import springboot.billgates.global.utils.MessageTemplateProvider;
 import springboot.billgates.kafka.dto.NotificationEvent;
+import springboot.billgates.kafka.service.MessageHistoryService;
 
 import jakarta.mail.internet.MimeMessage;
 import java.sql.Timestamp;
@@ -31,6 +31,7 @@ public class EmailMessageSender implements MessageSender {
     private final JdbcTemplate jdbcTemplate;
     private final JavaMailSender mailSender;
     private final EncryptUtils encryptUtils;
+    private final MessageHistoryService historyService;
     private final Random random = new Random();
 
     private static final String CHANNEL = "EMAIL";
@@ -68,8 +69,8 @@ public class EmailMessageSender implements MessageSender {
             log.info("[EMAIL] 발송 성공 - messageId: {}, recipient: {}",
                     event.getMessageId(), maskedEmail);
 
-            // 5. History 저장 (성공)
-            saveHistory(event.getMessageId(), true, finalTitle, finalBody);
+            // 5. History 저장 (성공) - 비동기
+            historyService.saveHistoryAsync(event.getMessageId(), CHANNEL, true, finalTitle, finalBody);
 
             return true;
 
@@ -78,8 +79,8 @@ public class EmailMessageSender implements MessageSender {
             log.warn("[EMAIL] 발송 실패 → SMS 전환 - messageId: {}, recipient: {}, error: {}",
                     event.getMessageId(), maskedEmail, e.getMessage());
 
-            // History 저장 (실패)
-            saveHistory(event.getMessageId(), false, finalTitle, finalBody);
+            // History 저장 (실패) - 비동기
+            historyService.saveHistoryAsync(event.getMessageId(), CHANNEL, false, finalTitle, finalBody);
 
             // SMS로 전환
             jdbcTemplate.update(
@@ -166,12 +167,9 @@ public class EmailMessageSender implements MessageSender {
             }
         }
 
-        // 6. 이력 저장 (한꺼번에)
+        // 6. 이력 저장 (비동기로 한꺼번에)
         if (!historyArgs.isEmpty()) {
-            jdbcTemplate.batchUpdate(
-                    "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) VALUES (?, ?, ?, ?, ?, ?)",
-                    historyArgs
-            );
+            historyService.saveHistoryBatchAsync(historyArgs);
         }
 
         // 7. 실패 건 SMS 전환 (한꺼번에)
@@ -195,12 +193,4 @@ public class EmailMessageSender implements MessageSender {
         return CHANNEL;
     }
 
-    private void saveHistory(Long messageId, boolean success, String title, String content) {
-        LocalDateTime now = LocalDateTime.now();
-        jdbcTemplate.update(
-            "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) " +
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            messageId, CHANNEL, success, Timestamp.valueOf(now), title, content
-        );
-    }
 }

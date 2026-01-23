@@ -4,11 +4,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import springboot.billgates.domain.billing.batch.dto.TemplateDto;
 import springboot.billgates.global.utils.BillingMessageFormatter;
 import springboot.billgates.global.utils.MessageTemplateProvider;
 import springboot.billgates.kafka.dto.NotificationEvent;
+import springboot.billgates.kafka.service.MessageHistoryService;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -24,6 +24,7 @@ public class SmsMessageSender implements MessageSender {
     private final MessageTemplateProvider templateProvider;
     private final BillingMessageFormatter messageFormatter;
     private final JdbcTemplate jdbcTemplate;
+    private final MessageHistoryService historyService;
 
     private static final String CHANNEL = "SMS";
     private static final long TEMPLATE_ID = 1L;
@@ -48,8 +49,8 @@ public class SmsMessageSender implements MessageSender {
             log.info("[SMS] 발송 성공 - messageId: {}, recipient: {}",
                     event.getMessageId(), event.getRecipient());
 
-            // 3. History 저장 (성공)
-            saveHistory(event.getMessageId(), true, finalTitle, finalBody);
+            // 3. History 저장 (성공) - 비동기
+            historyService.saveHistoryAsync(event.getMessageId(), CHANNEL, true, finalTitle, finalBody);
 
             return true;
 
@@ -57,8 +58,8 @@ public class SmsMessageSender implements MessageSender {
             log.error("[SMS] 시스템 장애 발생 - messageId: {}, error: {}",
                     event.getMessageId(), e.getMessage());
 
-            // History 저장 (실패)
-            saveHistory(event.getMessageId(), false, finalTitle, finalBody);
+            // History 저장 (실패) - 비동기
+            historyService.saveHistoryAsync(event.getMessageId(), CHANNEL, false, finalTitle, finalBody);
 
             // 최종 실패 처리 (SMS는 마지막 수단이므로 FAILED)
             jdbcTemplate.update(
@@ -71,7 +72,6 @@ public class SmsMessageSender implements MessageSender {
     }
 
     @Override
-    @Transactional
     public List<Long> sendBatch(List<NotificationEvent> events) {
         List<Long> successIds = new ArrayList<>();
         List<Object[]> historyArgs = new ArrayList<>();
@@ -90,12 +90,9 @@ public class SmsMessageSender implements MessageSender {
             });
         }
 
-        // 1. 모든 건의 History를 한 번에 저장
+        // 1. 모든 건의 History를 비동기로 한 번에 저장
         if (!historyArgs.isEmpty()) {
-            jdbcTemplate.batchUpdate(
-                    "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) VALUES (?, ?, ?, ?, ?, ?)",
-                    historyArgs
-            );
+            historyService.saveHistoryBatchAsync(historyArgs);
         }
 
         return successIds;
@@ -106,12 +103,4 @@ public class SmsMessageSender implements MessageSender {
         return CHANNEL;
     }
 
-    private void saveHistory(Long messageId, boolean success, String title, String content) {
-        LocalDateTime now = LocalDateTime.now();
-        jdbcTemplate.update(
-            "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) " +
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            messageId, CHANNEL, success, Timestamp.valueOf(now), title, content
-        );
-    }
 }
