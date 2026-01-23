@@ -61,9 +61,6 @@ public class AdminDataService {
         log.info(">>> [Admin] 더미 데이터 생성 작업을 시작합니다. (목표 Member: {}명, Usage: {}건)", request.getMemberCount(), request.getUsageCount());
 
         try {
-            // 0. 기존 데이터 초기화 (Reset)
-            resetTables();
-
             // 1. Member 데이터 생성
             if (request.getMemberCount() > 0) {
                 createMembers(request.getMemberCount());
@@ -82,20 +79,6 @@ public class AdminDataService {
 
         long endTime = System.currentTimeMillis();
         log.info(">>> [Admin] 모든 작업 완료! 총 소요 시간: {}ms", (endTime - startTime));
-    }
-
-    /**
-     * [테이블 초기화 로직]
-     * - FK 제약조건을 잠시 해제하고 데이터를 모두 비움 (TRUNCATE)
-     * - auto_increment 도 1로 초기화됨
-     */
-    private void resetTables() {
-        log.info(">>> 기존 데이터를 초기화합니다...");
-        jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
-        jdbcTemplate.execute("TRUNCATE TABLE USAGE_HISTORY");
-        jdbcTemplate.execute("TRUNCATE TABLE MEMBER");
-        jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
-        log.info(">>> 초기화 완료.");
     }
 
     /**
