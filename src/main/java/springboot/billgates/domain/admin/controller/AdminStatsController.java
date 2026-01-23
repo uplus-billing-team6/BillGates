@@ -18,11 +18,10 @@ public class AdminStatsController {
 	private final StatsService statsService;
 	
 	// 메세지 시퀀스 발송  결과 통계
-	// 현재 정상 작동 XXX. 수정 필요
 	@GetMapping("/notification")
 	public ResponseEntity<Response<NotificationStatsDto>> getNotificationStats(@RequestParam("month") String month){
 		return ResponseEntity.ok(
-			Response.success("", statsService.getNotificationStats(month))
+			Response.success("발송 통계 조회 성공", statsService.getNotificationStats(month))
 		);
 	}
 }
