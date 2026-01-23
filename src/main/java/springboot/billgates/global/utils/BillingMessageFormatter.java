@@ -8,11 +8,14 @@ import org.springframework.stereotype.Component;
 import springboot.billgates.domain.billing.batch.dto.TemplateDto;
 
 import java.util.Map;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
 public class BillingMessageFormatter {
     private final ObjectMapper objectMapper;
+    private final EncryptUtils encryptUtils;
+    private static final Set<String> SENSITIVE_KEYS = Set.of("email", "phoneNumber", "recipient");
 
     /**
      * [제목 포맷팅]
@@ -52,8 +55,35 @@ public class BillingMessageFormatter {
 
         String result = templateDto.getBody();
 
+        String recipient = "";
+        String channel = templateDto.getChannel(); // "EMAIL" 또는 "SMS"
+
+        if ("EMAIL".equalsIgnoreCase(channel)) {
+            Object val = variables.get("email");
+            if (val != null) {
+                // 암호문 -> 복호화 -> 이메일 마스킹
+                recipient = encryptUtils.maskEmail(encryptUtils.decrypt(String.valueOf(val)));
+            }
+
+        }
+        else if ("SMS".equalsIgnoreCase(channel)) {
+            Object val = variables.get("phoneNumber");
+            if (val != null) {
+                // 암호문 -> 복호화 -> 전화번호 마스킹
+                recipient = encryptUtils.maskPhoneNumber(encryptUtils.decrypt(String.valueOf(val)));
+            }
+        }
+        // 치환
+        result = result.replace("{recipient}", recipient);
+
+        // 나머지 변수 일괄 치환
         for (Map.Entry<String, Object> entry : variables.entrySet()) {
             String key = entry.getKey();
+
+            if (SENSITIVE_KEYS.contains(key)) {
+                continue;
+            }
+
             Object valObj = entry.getValue();
             String value = (valObj == null) ? "" : String.valueOf(valObj);
 
