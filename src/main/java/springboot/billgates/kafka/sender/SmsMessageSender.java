@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import springboot.billgates.domain.billing.batch.dto.TemplateDto;
 import springboot.billgates.global.utils.BillingMessageFormatter;
 import springboot.billgates.global.utils.MessageTemplateProvider;
@@ -70,16 +71,33 @@ public class SmsMessageSender implements MessageSender {
     }
 
     @Override
+    @Transactional
     public List<Long> sendBatch(List<NotificationEvent> events) {
         List<Long> successIds = new ArrayList<>();
+        List<Object[]> historyArgs = new ArrayList<>();
+
+        TemplateDto template = templateProvider.getTemplateById(TEMPLATE_ID);
+        LocalDateTime now = LocalDateTime.now();
 
         for (NotificationEvent event : events) {
-            if (send(event)) {
-                successIds.add(event.getMessageId());
-            }
+            // SMS는 실패가 없으므로 try-catch 없이 바로 조립
+            String finalTitle = messageFormatter.formatTitle(template, event.getEmailTitle());
+            String finalBody = messageFormatter.formatBody(template, event.getContent());
+
+            successIds.add(event.getMessageId());
+            historyArgs.add(new Object[]{
+                    event.getMessageId(), CHANNEL, true, Timestamp.valueOf(now), finalTitle, finalBody
+            });
         }
 
-        log.info("[SMS] 배치 발송 완료 - 전체: {}, 성공: {}", events.size(), successIds.size());
+        // 1. 모든 건의 History를 한 번에 저장
+        if (!historyArgs.isEmpty()) {
+            jdbcTemplate.batchUpdate(
+                    "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) VALUES (?, ?, ?, ?, ?, ?)",
+                    historyArgs
+            );
+        }
+
         return successIds;
     }
 

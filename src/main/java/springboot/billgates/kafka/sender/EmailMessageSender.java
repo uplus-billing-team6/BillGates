@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import springboot.billgates.domain.billing.batch.dto.TemplateDto;
 import springboot.billgates.global.utils.BillingMessageFormatter;
 import springboot.billgates.global.utils.MessageTemplateProvider;
@@ -77,16 +78,55 @@ public class EmailMessageSender implements MessageSender {
     }
 
     @Override
+    @Transactional
     public List<Long> sendBatch(List<NotificationEvent> events) {
         List<Long> successIds = new ArrayList<>();
+        List<Object[]> historyArgs = new ArrayList<>();
+        List<NotificationEvent> failedEvents = new ArrayList<>();
+
+        TemplateDto template = templateProvider.getTemplateById(TEMPLATE_ID);
+        LocalDateTime now = LocalDateTime.now();
 
         for (NotificationEvent event : events) {
-            if (send(event)) {
+            String finalTitle = "";
+            String finalBody = "";
+            try {
+                finalTitle = messageFormatter.formatTitle(template, event.getEmailTitle());
+                finalBody = messageFormatter.formatBody(template, event.getContent());
+
+                // 랜덤 실패 로직 (의도하신 대로 유지)
+                if (random.nextInt(100) == 0) throw new RuntimeException("발송 실패 시뮬레이션");
+
                 successIds.add(event.getMessageId());
+                historyArgs.add(new Object[]{
+                        event.getMessageId(), CHANNEL, true, Timestamp.valueOf(now), finalTitle, finalBody
+                });
+            } catch (Exception e) {
+                failedEvents.add(event);
+                historyArgs.add(new Object[]{
+                        event.getMessageId(), CHANNEL, false, Timestamp.valueOf(now), finalTitle, finalBody
+                });
             }
         }
 
-        log.info("[EMAIL] 배치 발송 완료 - 전체: {}, 성공: {}", events.size(), successIds.size());
+        // 1. 이력 저장 (한꺼번에)
+        if (!historyArgs.isEmpty()) {
+            jdbcTemplate.batchUpdate(
+                    "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) VALUES (?, ?, ?, ?, ?, ?)",
+                    historyArgs
+            );
+        }
+
+        // 2. 실패 건 SMS 전환 (한꺼번에)
+        if (!failedEvents.isEmpty()) {
+            List<Object[]> failArgs = failedEvents.stream()
+                    .map(e -> new Object[]{e.getMessageId()})
+                    .toList();
+            jdbcTemplate.batchUpdate(
+                    "UPDATE MESSAGE SET channel = 'SMS', status = 'DEFERRED', reserved_at = DATE_ADD(NOW(), INTERVAL 1 MINUTE) WHERE message_id = ?",
+                    failArgs
+            );
+        }
         return successIds;
     }
 
