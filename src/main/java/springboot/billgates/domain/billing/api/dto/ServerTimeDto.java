@@ -9,4 +9,6 @@ public class ServerTimeDto {
 	private String currentDate;  
     private String currentTime;  
     private String dayOfWeek;
+    private String batchDate;
+
 }
