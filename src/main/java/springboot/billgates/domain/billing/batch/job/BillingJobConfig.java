@@ -8,6 +8,7 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemStreamReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcCursorItemReader;
@@ -55,6 +56,7 @@ public class BillingJobConfig {
         return new StepBuilder("billingStep", jobRepository)
             .<BillingPack, BillingPack>chunk(CHUNK_SIZE, transactionManager)
             .reader(groupingReader(null))
+            .processor(billingProcessor())
             .writer(billingCompositeWriter())
             .faultTolerant() // 오류 발생 시 배치 전체가 죽지 않도록 안전장치
             .build();
@@ -87,13 +89,17 @@ public class BillingJobConfig {
             .build();
 
         // 3. Grouping Reader로 감싸서 리턴
-        return new BillingGroupReader(dbReader, billingMonth);
+        return new BillingGroupReader(dbReader, billingMonth, jdbcTemplate);
     }
 
     /**
-     * [Processor] By - pass
-     * 관련 작업을 이미 Reader 에서 모두 처리함.
+     * [Processor]
+     *
      */
+    @Bean
+    public ItemProcessor<BillingPack, BillingPack> billingProcessor() {
+        return new BillingProcessor();
+    }
 
     /**
      * [Writer] Billing, BillingItem, Message 세 테이블에 저장하는 커스텀 Writer
