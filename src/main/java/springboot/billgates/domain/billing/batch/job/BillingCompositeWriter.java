@@ -51,7 +51,7 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
 
     @Override
     public void write(Chunk<? extends BillingPack> chunk) {
-        log.info(">>> [Writer] Saving Chunk... (Size: {} items)", chunk.getItems().size());
+//        log.info(">>> [Writer] Saving Chunk... (Size: {} items)", chunk.getItems().size());
         long startTime = System.currentTimeMillis();
 
         List<Object[]> billingArgs = new ArrayList<>();
