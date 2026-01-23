@@ -72,6 +72,7 @@ public class AdminDataService {
             // 2. Usage History 데이터 생성
             if (request.getUsageCount() > 0) {
                 createUsageHistories(request.getUsageCount());
+                createMemberDiscountPolicies();
             }
 
         } catch (Exception e) {
@@ -177,6 +178,78 @@ public class AdminDataService {
             }
         }
         log.info(">>> Member {}건 생성 완료.", totalCount);
+    }
+
+    /**
+     * [최종 수정] 회원별 할인 정책 매핑 생성 (중복 허용 & 완전 랜덤)
+     * 1단계: 전체 회원의 50%는 아예 할인 대상에서 제외 (No Discount)
+     * 2단계: 살아남은 50%의 회원에 대해, 각 정책(1~4번)별로 주사위를 따로 굴림 (중복 당첨 가능)
+     */
+    private void createMemberDiscountPolicies() {
+        log.info(">>> Member Discount Policy 매핑 생성 시작");
+
+        Long minMemberId = jdbcTemplate.queryForObject("SELECT MIN(member_id) FROM MEMBER", Long.class);
+        Long maxMemberId = jdbcTemplate.queryForObject("SELECT MAX(member_id) FROM MEMBER", Long.class);
+
+        if (minMemberId == null) return;
+
+        String sql = "INSERT INTO member_discount_policy (member_id, policy_id) VALUES (?, ?)";
+        List<Object[]> batchArgs = new ArrayList<>(BATCH_SIZE);
+        Random random = ThreadLocalRandom.current();
+
+        long memberCount = 0;
+        long policyCount = 0;
+
+        for (long memberId = minMemberId; memberId <= maxMemberId; memberId++) {
+
+            // [1단계] 50%의 회원은 아예 할인 기회조차 없음 (꽝)
+            if (random.nextInt(100) < 50) {
+                continue;
+            }
+
+            memberCount++; // 할인 대상자가 된 회원 수 카운트
+
+            // [2단계] 대상자가 되었다면, 4개의 정책에 대해 각각 당첨 여부를 체크 (독립 시행)
+
+            // 정책 1: 선택약정 (당첨 확률 80% - 대상자 내에서)
+            if (random.nextInt(100) < 80) {
+                batchArgs.add(new Object[]{memberId, 1L});
+                policyCount++;
+            }
+
+            // 정책 2: 프리미어 약정 (당첨 확률 20%)
+            if (random.nextInt(100) < 20) {
+                batchArgs.add(new Object[]{memberId, 2L});
+                policyCount++;
+            }
+
+            // 정책 3: 복지 할인 (당첨 확률 5%)
+            if (random.nextInt(100) < 5) {
+                batchArgs.add(new Object[]{memberId, 3L});
+                policyCount++;
+            }
+
+            // 정책 4: 결합 할인 (당첨 확률 30%)
+            if (random.nextInt(100) < 30) {
+                batchArgs.add(new Object[]{memberId, 4L});
+                policyCount++;
+            }
+
+            // ※ 운이 나쁘면 대상자 그룹(50%)에 들었어도, 4개 다 꽝이 나와서 할인이 없을 수도 있음 (자연스러운 랜덤)
+
+            // 배치 실행
+            if (batchArgs.size() >= BATCH_SIZE) {
+                jdbcTemplate.batchUpdate(sql, batchArgs);
+                batchArgs.clear();
+            }
+        }
+
+        // 남은 데이터 처리
+        if (!batchArgs.isEmpty()) {
+            jdbcTemplate.batchUpdate(sql, batchArgs);
+        }
+
+        log.info(">>> 매핑 완료. (할인 대상 회원: 약 {}명, 발급된 총 쿠폰: {}개)", memberCount, policyCount);
     }
 
     /**
