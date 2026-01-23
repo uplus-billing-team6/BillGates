@@ -113,10 +113,10 @@ public class KafkaProducerConfig {
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
 
         // 성능
-        config.put(ProducerConfig.BATCH_SIZE_CONFIG, 16384);
-        config.put(ProducerConfig.LINGER_MS_CONFIG, 10);
-        config.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "snappy");
-        config.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 33554432);
+        config.put(ProducerConfig.BATCH_SIZE_CONFIG, 16384 * 4);
+        config.put(ProducerConfig.LINGER_MS_CONFIG, 20);
+        config.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "lz4");
+        config.put(ProducerConfig.BUFFER_MEMORY_CONFIG, 67108864);
 
         // 🔥 안정성 (중요)
         config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);

@@ -21,11 +21,17 @@ public class MessageSendHistory {
     private Long messageId;
 
     @Column(name = "channel", nullable = false, length = 50)
-    private String channel; // EMAIL / SMS
+    private String channel;
 
     @Column(name = "success", nullable = false)
     private Boolean success;
 
     @Column(name = "sent_at", nullable = false)
     private LocalDateTime sentAt;
+
+    @Column(name = "title", length = 255)
+    private String title;
+
+    @Column(name = "content", columnDefinition = "TEXT")
+    private String content;
 }
