@@ -52,6 +52,5 @@ public class SmsNotificationConsumer {
                 updateArgs
         );
 
-        log.info("[{}] 상태 업데이트 완료 - COMPLETED {} 건", CHANNEL, updateArgs.size());
     }
 }
