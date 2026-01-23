@@ -13,6 +13,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BillingMessageFormatter {
     private final ObjectMapper objectMapper;
+    private final EncryptUtils encryptUtils;
 
     /**
      * [제목 포맷팅]
@@ -53,17 +54,20 @@ public class BillingMessageFormatter {
         String result = templateDto.getBody();
 
         String recipient = "";
+        String finalRecipient = "";
         String channel = templateDto.getChannel(); // "EMAIL" 또는 "SMS"
         if ("EMAIL".equalsIgnoreCase(channel)) {
             Object val = variables.get("email");
             recipient = (val != null) ? String.valueOf(val) : "";
+            finalRecipient = encryptUtils.maskEmail(encryptUtils.decrypt(recipient));
         }
         else if ("SMS".equalsIgnoreCase(channel)) {
             Object val = variables.get("phoneNumber");
             recipient = (val != null) ? String.valueOf(val) : "";
+            finalRecipient = encryptUtils.maskPhoneNumber(encryptUtils.decrypt(recipient));
         }
         // 치환
-        result = result.replace("{recipient}", recipient);
+        result = result.replace("{recipient}", finalRecipient);
 
         // 나머지 변수 일괄 치환
         for (Map.Entry<String, Object> entry : variables.entrySet()) {
