@@ -87,10 +87,10 @@ public class BillingMessageFormatter {
             Object valObj = entry.getValue();
             String value = (valObj == null) ? "" : String.valueOf(valObj);
 
-            // [특수 로직] itemList가 비어있을 때 처리
-            if ("itemList".equals(key)) {
+            // [특수 로직] 리스트가 비어있을 때 처리
+            if ("itemList".equals(key) || "discountList".equals(key)) {
                 if (value.isBlank()) {
-                    value = "- 상세 이용 내역이 없습니다.";
+                    value = "- 상세 내역이 없습니다.";
                 }
             }
             // 치환
