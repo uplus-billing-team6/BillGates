@@ -8,7 +8,9 @@ import org.springframework.batch.core.explore.JobExplorer;
 import org.springframework.stereotype.Service;
 import springboot.billgates.domain.billing.api.dto.BatchStatusResponse;
 import springboot.billgates.domain.billing.api.dto.BillingResponse;
-import springboot.billgates.domain.billing.api.repository.BillingRepository;
+import springboot.billgates.entity.BillingDiscount;
+import springboot.billgates.repository.BillingDiscountRepository;
+import springboot.billgates.repository.BillingRepository;
 import springboot.billgates.entity.Billing;
 import springboot.billgates.entity.BillingItem;
 import springboot.billgates.global.exception.CustomException;
@@ -24,14 +26,16 @@ public class BillingService {
 
     private final BillingRepository billingRepository;
     private final BillingItemRepository billingItemRepository;
+    private final BillingDiscountRepository billingDiscountRepository; // [New] Repository 주입 필요
     private final JobExplorer jobExplorer;
 
     public BillingResponse getBillingResult(Long memberId, String billingMonth) {
          Billing billing = billingRepository.findByMemberIdAndBillingMonth(memberId, billingMonth)
             .orElseThrow(() -> new CustomException(ErrorCode.BILLING_NO_EXISTS));
-        List<BillingItem> itemList = billingItemRepository.findAllByBillingId(billing.getBillingId());
+         List<BillingItem> itemList = billingItemRepository.findAllByBillingId(billing.getBillingId());
+         List<BillingDiscount> discountList = billingDiscountRepository.findAllByBillingId(billing.getBillingId());
 
-         return BillingResponse.of(billing, itemList);
+         return BillingResponse.of(billing, itemList, discountList);
     }
 
     public BatchStatusResponse getBatchStatus(String billingMonth) {
