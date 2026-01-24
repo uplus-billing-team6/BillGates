@@ -36,4 +36,10 @@ public class Billing {
 
     @Column(name = "total_amount", nullable = false)
     private Long totalAmount;
+
+    @Column(name = "original_amount", nullable = false)
+    private Long originalAmount;
+
+    @Column(name = "total_discount_amount", nullable = false)
+    private Long totalDiscountAmount;
 }

@@ -1,4 +1,4 @@
-package springboot.billgates.domain.billing.api.repository;
+package springboot.billgates.repository;
 
 import java.util.Optional;
 
