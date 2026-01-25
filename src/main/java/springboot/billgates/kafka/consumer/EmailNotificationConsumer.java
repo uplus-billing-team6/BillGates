@@ -23,7 +23,7 @@ public class EmailNotificationConsumer {
 
     private static final String CHANNEL = "EMAIL";
 
-//    @Transactional
+    @Transactional
     @KafkaListener(topics = "notification-email", groupId = "email-group", containerFactory = "kafkaListenerContainerFactory")
     public void consume(List<NotificationEvent> events) {
         if (events.isEmpty()) return;

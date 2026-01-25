@@ -21,11 +21,11 @@ public class AsyncConfig {
     @Bean(name = "dummyDataExecutor")
     public Executor dummyDataExecutor() {
         return new ThreadPoolTaskExecutorBuilder()
-            .corePoolSize(2)       // 기본 실행 대기 스레드 수 (평상시 유지)
-            .maxPoolSize(5)        // 동시 동작 가능한 최대 스레드 수 (트래픽 폭주 시)
-            .queueCapacity(500)    // 대기열 크기 (스레드가 모두 바쁠 때 대기하는 요청 수)
-            .threadNamePrefix("Async-Dummy-") // 스레드 이름 접두사 (로그 분석 용이: Async-Dummy-1, Async-Dummy-2...)
-            .build();
+                .corePoolSize(2)       // 기본 실행 대기 스레드 수 (평상시 유지)
+                .maxPoolSize(5)        // 동시 동작 가능한 최대 스레드 수 (트래픽 폭주 시)
+                .queueCapacity(500)    // 대기열 크기 (스레드가 모두 바쁠 때 대기하는 요청 수)
+                .threadNamePrefix("Async-Dummy-") // 스레드 이름 접두사 (로그 분석 용이: Async-Dummy-1, Async-Dummy-2...)
+                .build();
     }
 
     @Bean(name = "kafkaExecutor")
