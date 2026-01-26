@@ -157,7 +157,20 @@
     - 회원 조회 시 연관된 '할인 정책'을 개별 조회하지 않고, **서브 쿼리**를 통해 해당 Chunk에 속한 회원의 할인 정보를 **한 번에 로딩(In-Memory Map)** 하여 쿼리 수를 획기적으로 줄였습니다.
 
 #### 처리 흐름
-
+```
+[Reader]
+• Member + Usage 조회
+• Discount 정보 Fetch Join
+      ↓
+[Processor]
+1. 사용량 합산
+2. 할인 정책(Fixed/Percent) 적용
+3. 최종 금액 계산
+      ↓
+[Writer]
+1. TSID 채번 (Java)
+2. Bulk Insert (4개 테이블 동시 저장)
+```
 
 #### 운영 및 안정성
 - **스케줄링 및 수동 실행**
@@ -168,9 +181,6 @@
     - **구현**: Redis `setIfAbsent`를 활용하여 Job Parameter(날짜)를 Key로 분산 락을 점유합니다. 이미 실행 중일 경우 **즉시 예외를 발생시켜(Fail-fast)** 중복 실행을 원천 차단합니다. (API 호출 시 `409 Conflict` 응답)
 - **장애 복구 (Force Restart)**
     - 서버 비정상 종료로 배치가 `STARTED` 상태에 고립될 경우, `force=true` 파라미터를 통해 락을 강제 해제하고 프로세스를 안전하게 재시작할 수 있는 복구 로직을 구현했습니다.
-
-<br>
-</details>
 
 <br>
 </details>
@@ -253,27 +263,9 @@ MESSAGE_SEND_HISTORY (결과 저장)
 #### 3. 동적 예약 관리 (Admin API)
 - 코드 수정이나 재배포 없이, **API를 통해 DB에 저장된 예약 설정을 실시간으로 변경**할 수 있습니다.
 - 운영자는 상황에 따라 '즉시 발송 모드'와 '예약 발송 모드'를 자유롭게 전환할 수 있어 운영 효율성을 높였습니다.
-    - `POST /api/admin/setting/reservation`: 예약 사용 여부(`true/false`) 및 발송 시각(`HH:mm`) 설정
+    - `PUT /api/admin/reservation`: 예약 사용 여부(`true/false`) 및 발송 시각(`HH:mm`) 설정
 
-#### 🔄 처리 흐름 (Processor Logic)
 
-```mermaid
-graph TD
-    A[<b>Reader</b><br/>회원 정보 + 시스템 설정 조회] --> B{<b>Processor</b><br/>시간 계산 로직}
-    
-    B --> C{1. 시스템 예약 활성화?<br/>(API로 변경 가능)}
-    C -- Yes --> D[시스템 설정 시간 선택<br/>(예: 09:00)]
-    C -- No --> E[현재 시간(NOW) 선택]
-    
-    D & E --> F{2. 회원별 DND 사용?}
-    F -- Yes --> G{금지 시간대 겹침?}
-    F -- No --> H[시간 유지]
-    
-    G -- Yes (겹침) --> I[<b>Time Shift</b><br/>금지 해제 시간(08:00:01)으로 변경]
-    G -- No --> H
-    
-    I & H --> J[<b>Writer</b><br/>MESSAGE 테이블 저장]
-  ```
 </details>
 
 ##  핵심 성과
