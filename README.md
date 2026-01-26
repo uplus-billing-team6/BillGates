@@ -937,6 +937,30 @@ public List<Long> sendBatch(List<NotificationEvent> events) {
 4. **Connection Pool 증설은 근본 해결책이 아니다**: Connection Pool 크기만 늘리는 것은 임시방편일 뿐, 아키텍처 개선이 필요합니다.
 5. **장애는 수치로 증명해야 끝난다**: Before/After 측정을 통해 개선 효과를 명확히 검증해야 합니다.
 </details>
+
+<details>
+<summary>프론트엔드 ID 정밀도 손실 문제 (JavaScript Precision Loss)</summary>
+
+### 1. 문제 상황
+프론트엔드 대시보드에서 `messageId`를 표시할 때, **원본 데이터와 다른 값이 출력되거나 뒷자리가 0으로 바뀌며 반올림되는 현상**이 발생했습니다.
+* **DB 저장값:** `9223372036854775807`
+* **브라우저 표시값:** `9223372036854776000` (왜곡 발생)
+
+### 2. 원인 분석
+* **JavaScript 숫자 표현 한계**: JavaScript의 `number` 타입은 IEEE 754 부동 소수점 방식을 사용하며, 안전하게 표현할 수 있는 최대 정수는 $2^{53} - 1$ (약 16자리, `Number.MAX_SAFE_INTEGER`)입니다.
+* **TSID 도입에 따른 범위 초과**: 배치 성능 향상을 위해 도입한 **18자리의 TSID**는 이 안전 범위를 초과합니다.
+* **정밀도 손실(Precision Loss)**: 브라우저가 JSON 데이터를 파싱하여 숫자로 변환하는 과정에서 범위를 벗어난 값을 가장 가까운 근사치로 처리하여 데이터 무결성이 깨졌습니다.
+
+
+
+### 3. 해결 시도 및 결과
+* **해결 방안**: 해당 ID값은 수치 계산용이 아닌 식별용 데이터이므로, 백엔드 직렬화 단계에서 **문자열(String)**로 변환하여 전달하도록 설정했습니다.
+* **적용 코드 (Java)**:
+  ```java
+  @JsonSerialize(using = ToStringSerializer.class)
+  private Long messageId;
+
+</details>
 <br>
 
 ## 실행 방법
