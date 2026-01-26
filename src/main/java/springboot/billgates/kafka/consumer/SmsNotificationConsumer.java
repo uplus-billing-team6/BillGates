@@ -26,7 +26,7 @@ public class SmsNotificationConsumer {
     // ⚠️ SMS용 템플릿 ID (만약 이메일과 다른 문구를 쓴다면 DB ID 확인 필요, 같으면 1L 유지)
     private static final long TEMPLATE_ID = 2L; 
 
-    @Transactional
+//    @Transactional
     @KafkaListener(topics = "notification-sms", groupId = "sms-group", containerFactory = "kafkaListenerContainerFactory")
     public void consume(List<NotificationEvent> events) {
         if (events.isEmpty()) return;

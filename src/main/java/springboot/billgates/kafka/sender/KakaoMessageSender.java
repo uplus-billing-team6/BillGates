@@ -68,9 +68,9 @@ public class KakaoMessageSender implements MessageSender {
 
             // SMS로 전환
             jdbcTemplate.update(
-                "UPDATE MESSAGE SET channel = 'SMS', status = 'DEFERRED', " +
-                "reserved_at = DATE_ADD(NOW(), INTERVAL 1 MINUTE) WHERE message_id = ?",
-                event.getMessageId()
+                    "UPDATE MESSAGE SET channel = 'SMS', status = 'DEFERRED', " +
+                            "reserved_at = DATE_ADD(NOW(), INTERVAL 1 MINUTE) WHERE message_id = ?",
+                    event.getMessageId()
             );
 
             return false;
@@ -117,9 +117,9 @@ public class KakaoMessageSender implements MessageSender {
     private void saveHistory(Long messageId, boolean success, String title, String content) {
         LocalDateTime now = LocalDateTime.now();
         jdbcTemplate.update(
-            "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) " +
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            messageId, CHANNEL, success, Timestamp.valueOf(now), title, content
+                "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) " +
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                messageId, CHANNEL, success, Timestamp.valueOf(now), title, content
         );
     }
 }

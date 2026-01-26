@@ -62,8 +62,8 @@ public class SmsMessageSender implements MessageSender {
 
             // 최종 실패 처리 (SMS는 마지막 수단이므로 FAILED)
             jdbcTemplate.update(
-                "UPDATE MESSAGE SET status = 'FAILED' WHERE message_id = ?",
-                event.getMessageId()
+                    "UPDATE MESSAGE SET status = 'FAILED' WHERE message_id = ?",
+                    event.getMessageId()
             );
 
             return false;
@@ -109,9 +109,9 @@ public class SmsMessageSender implements MessageSender {
     private void saveHistory(Long messageId, boolean success, String title, String content) {
         LocalDateTime now = LocalDateTime.now();
         jdbcTemplate.update(
-            "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) " +
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            messageId, CHANNEL, success, Timestamp.valueOf(now), title, content
+                "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) " +
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                messageId, CHANNEL, success, Timestamp.valueOf(now), title, content
         );
     }
 }

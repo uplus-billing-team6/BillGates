@@ -23,7 +23,7 @@ public class KakaoNotificationConsumer {
 
     private static final String CHANNEL = "KAKAO";
 
-    @Transactional
+//    @Transactional
     @KafkaListener(topics = "notification-kakao", groupId = "kakao-group", containerFactory = "kafkaListenerContainerFactory")
     public void consume(List<NotificationEvent> events) {
         if (events.isEmpty()) return;

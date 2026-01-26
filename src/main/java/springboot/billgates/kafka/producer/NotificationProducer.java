@@ -21,7 +21,7 @@ public class NotificationProducer {
             // 채널에 맞는 토픽 결정 (확장 가능)
             String topic = channelTopicMapper.getTopic(event.getChannel());
 
-            log.info("[PRODUCER] 발송 요청 - channel={}, topic={}, messageId={}", event.getChannel(), topic, event.getMessageId());
+//            log.info("[PRODUCER] 발송 요청 - channel={}, topic={}, messageId={}", event.getChannel(), topic, event.getMessageId());
 
             // Kafka로 전송
             kafkaTemplate.send(topic, event.getMessageId().toString(), event);

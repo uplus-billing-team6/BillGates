@@ -52,6 +52,20 @@ services:
     networks:
       - kafka-network
 
+  # 4. Mailpit (이메일 테스트용)
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: billgates-mailpit
+    ports:
+      - "1025:1025"  # SMTP 포트
+      - "8025:8025"  # Web UI 포트
+    environment:
+      - MP_SMTP_AUTH_ACCEPT_ANY=1
+      - MP_SMTP_AUTH_ALLOW_INSECURE=1
+    networks:
+      - kafka-network
+
+
 volumes:
   kafka-data:
 
