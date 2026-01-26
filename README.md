@@ -114,7 +114,7 @@
 
 ## ERD
 
-<img width="2378" height="1362" alt="유레카 종합프로젝트 6조 (2)" src="https://github.com/user-attachments/assets/65707240-6164-4252-8564-e2174ee2b8ea" />
+<img width="2378" height="1362" alt="유레카 종합프로젝트 6조 (2)" src="https://github.com/seongjae1/GitSTS/issues/8#issue-3854735876" />
 
 <br>
 <br>
