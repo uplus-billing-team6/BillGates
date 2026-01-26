@@ -1,7 +1,7 @@
 # BillGates - 통신 요금 정산 및 알림 시스템
 
 ##  목차
-
+- [팀원 구성 및 역할 분담](#-팀원-구성-및-역할-분담)
 - [서비스 소개](#-서비스-소개)
 - [프로젝트 배경](#-프로젝트-배경)
 - [프로젝트 일정](#-프로젝트-일정)
@@ -13,6 +13,23 @@
 
 
 <br>
+
+## 팀원 구성 및 역할 분담
+
+### 👨‍💻 Team Billgates
+**LG U+ URECA 백엔드 개발자 과정 3기 종합프로젝트 6조**
+
+<br>
+
+| 김우식 | 이재혁 | 조성재 | 최보근 | 홍세민 |
+| :---: | :---: | :---: | :---: | :---: |
+| [<img src="https://github.com/rladntlr.png" width="150" height="150"><br/>@rladntlr](https://github.com/rladntlr) | [<img src="https://github.com/ljh5918.png" width="150" height="150"><br/>@ljh5918](https://github.com/ljh5918) | [<img src="https://github.com/seongejae.png" width="150" height="150"><br/>@seongejae](https://github.com/seongejae) | [<img src="https://github.com/ChoiBoKeun1.png" width="150" height="150"><br/>@ChoiBoKeun1](https://github.com/ChoiBoKeun1) | [<img src="https://github.com/semsemin.png" width="150" height="150"><br/>@semsemin](https://github.com/semsemin) |
+| **Backend** | **Backend / Frontend** | **Backend** | **Backend** | **Backend** |
+| 역할 및 담당 기능<br>작성해주세요 | 역할 및 담당 기능<br>작성해주세요 | 역할 및 담당 기능<br>작성해주세요 | 더미데이터 생성 로직 구현 <br> Spring Batch 정산 로직 구현 | 역할 및 담당 기능<br>작성해주세요 |
+
+<br>
+
+
 
 ##  서비스 소개
 
@@ -126,34 +143,34 @@
 
 #### Spring Batch를 활용한 정산 처리
 
-- **100만 명의 회원**에 대한 **500만 건의 사용 이력** 데이터를 처리하여 월별 청구 금액을 자동으로 계산합니다.
-- 매월 지정일에 자동 실행되며, **요금제, 통화료, 소액결제** 등 카테고리별로 금액을 집계하여 정산 결과 테이블에 저장합니다.
+- **대규모 데이터 처리**: **100만 명의 회원**과 **500만 건의 사용 이력**을 처리하여 월별 청구서를 생성합니다
+- **복합 정산 로직**: 단순 합산이 아닌, **요금제 기본료 + 통화료 + 소액결제**를 합산한 뒤, 회원별 **할인 정책(정액/정률)** 을 적용하여 최종 청구 금액을 확정합니다.
+- **데이터 정합성 보장**: `Reader` → `Processor` → `Writer`의 트랜잭션 범위를 Chunk 단위로 관리하여 정산 데이터의 무결성을 보장합니다.
 
 #### 성능 최적화
-
-- **복합 인덱스** (`member_id`, `usage_date`)를 활용하여 조회 성능을 향상시킵니다.
-- 병렬 처리 (Multi-threading): `ThreadPoolTaskExecutor`를 활용하여 10개의 스레드가 동시에 청구서를 생성합니다.
-- 스레드 안정성 확보: `SynchronizedItemStreamReader`를 적용하여 병렬 환경에서도 데이터 누락이나 중복 없이 안전하게 읽어옵니다.
-- 조회 성능 개선: `USAGE_HISTORY` 테이블에 복합 인덱스(`member_id`, `usage_date`)를 적용하여 Processor 단계의 조회 속도를 최적화했습니다.
+기존 JPA ```saveAll```의 성능 한계를 극복하고 대용량 처리를 위해 다음과 같은 최적화를 수행했습니다.
+- **TSID 기반 Bulk Insert**
+    - **문제**: DB Auto Increment 사용 시 Key 반환을 위한 Network Round-trip으로 인해 Bulk Insert가 불가능했습니다.
+    - **해결**: ID 생성 주체를 DB에서 **Java(TSID)** 로 이관, ID를 Java app 에서 선채번(Pre-allocation)하고, `JdbcTemplate.batchUpdate`를 사용하여 **수천 건을 한 번에 Insert**했습니다.
+    - **결과**: 처리 속도 **67% 단축** (테스트 결과 : 기존 15분 → **5분**)
+- **N+1 문제 해결 (Reader 최적화)**
+    - 회원 조회 시 연관된 '할인 정책'을 개별 조회하지 않고, **서브 쿼리**를 통해 해당 Chunk에 속한 회원의 할인 정보를 **한 번에 로딩(In-Memory Map)** 하여 쿼리 수를 획기적으로 줄였습니다.
 
 #### 처리 흐름
 
-```
-MEMBER (100만 명 / Cursor Read)
-    ↓
-[Parallel Processing - 10 Threads]
-Spring Batch (사용 내역 조회 및 합산)
-    ↓
-[Chunk Size: 1000]
-BILLING & BILLING_ITEM 저장
-```
-#### 운영 및 장애 대응
-- 수동 실행 API: `/api/batch/billing/run`을 통해 특정 월의 정산을 즉시 실행할 수 있습니다.
-- 복구 로직: 서버 비정상 종료로 인해 비치가 `STARTED` 상태로 멈춘 경우, `force=true` 옵션을 통해 좀비 프로세스를 정리하고 즉시 재시작할 수 있습니다. 
 
-#### 🚀 고도화 계획 (To-Be)
-- 분산 락 (Distributed Lock): 다중 서버 환경에서의 중복 실행 방지를 위해 Redis 도입 예정.
-- 멱등성 쿼리 (Idempotency): 재실행 시 데이터 중복 에러를 방지하고 덮어쓰기가 가능하도록 ON DUPLICATE KEY UPDATE 쿼리 적용 예정.
+#### 운영 및 안정성
+- **스케줄링 및 수동 실행**
+    - **자동**: 매월 1일 오전 04:00에 `BillingScheduler`가 자동으로 배치를 트리거합니다.
+    - **수동**: `/api/batch/billing/run` API를 통해 실패한 월의 정산을 관리자가 즉시 재실행할 수 있습니다.
+- **분산 락 (Distributed Lock)**
+    - **목적**: 다중 서버 환경이나 스케줄러/API 중복 호출 시 배치가 **이중으로 실행되는 것을 방지**합니다.
+    - **구현**: Redis `setIfAbsent`를 활용하여 Job Parameter(날짜)를 Key로 분산 락을 점유합니다. 이미 실행 중일 경우 **즉시 예외를 발생시켜(Fail-fast)** 중복 실행을 원천 차단합니다. (API 호출 시 `409 Conflict` 응답)
+- **장애 복구 (Force Restart)**
+    - 서버 비정상 종료로 배치가 `STARTED` 상태에 고립될 경우, `force=true` 파라미터를 통해 락을 강제 해제하고 프로세스를 안전하게 재시작할 수 있는 복구 로직을 구현했습니다.
+
+<br>
+</details>
 
 <br>
 </details>
@@ -212,34 +229,52 @@ MESSAGE_SEND_HISTORY (결과 저장)
 </details>
 
 <details>
-<summary><strong>3. 예약 발송 및 금지 시간대 처리</strong></summary>
+<summary><strong>3. 지능형 발송 스케줄링 (예약 & 금지 시간대)</strong></summary>
 
+### 🎯 Challenge & Solution
 
-#### 고객 맞춤 청구일 설정
+배치 완료 직후 일괄 발송 시 발생할 수 있는 '새벽 시간대 알림' 문제를 방지하고, 운영 효율성을 위해 **시스템 예약**과 **회원별 금지 시간대(DND)**를 결합한 하이브리드 스케줄링을 구현했습니다.
 
-- **정산일**과 **청구일**을 분리하여 고객이 원하는 날짜에 청구서를 받을 수 있도록 지원합니다.
-- 고객별로 선호하는 청구일(매월 1일, 5일, 10일 등)을 설정하고, Spring Scheduler가 매일 해당 시간에 발송 대상을 조회하여 Kafka로 전송합니다.
+#### 1. 발송 시간 선계산 로직 (In-Batch Logic)
+정산 배치(Processor) 단계에서 **시스템 전역 설정**과 **회원별 설정**을 조합하여 최종 발송 시각(`reserved_at`)을 미리 계산합니다.
 
-#### 발송 금지 시간대 자동 회피
+1.  **시스템 일괄 예약 확인 (System Global Setting)**:
+    - 시스템 설정 테이블(`RESERVATION_SETTING`)의 `is_reservation_active` 값을 확인합니다.
+    - `TRUE`: 시스템이 지정한 일괄 발송 시간(예: 09:00)을 기준 시간으로 설정
+    - `FALSE`: 배치가 완료되는 현재 시각(`NOW`)을 기준 시간으로 설정
+2.  **회원별 금지 시간대 보정 (Member Personal Setting)**:
+    - 회원의 `use_dnd` 컬럼을 확인하여 금지 시간대 사용 여부를 체크합니다.
+    - **Time Shift**: 만약 기준 시간이 회원의 금지 시간대(예: 22:00 ~ 08:00)에 포함된다면, **금지 해제 직후(08:00:01)로 시간을 자동 보정(Shift)** 합니다.
 
-- 고객이 설정한 **수신 거부 시간대**(예: 밤 10시 ~ 아침 8시)를 확인하여 해당 시간대를 자동으로 회피합니다.
-- 금지 시간대에 해당하는 메시지는 **다음 가능 시간으로 자동 연기**되어 고객 경험을 개선합니다.
+#### 2. 처리 결과 저장
+- 위 로직을 통해 확정된 `reserved_at`은 `MESSAGE` 테이블에 저장됩니다.
+- 이후 발송기는 복잡한 시간 계산 없이, 단순히 **`reserved_at <= NOW`** 인 메시지만 조회하여 발송하므로 대용량 환경에서도 조회 성능이 극대화됩니다.
 
-#### 처리 흐름
+#### 3. 동적 예약 관리 (Admin API)
+- 코드 수정이나 재배포 없이, **API를 통해 DB에 저장된 예약 설정을 실시간으로 변경**할 수 있습니다.
+- 운영자는 상황에 따라 '즉시 발송 모드'와 '예약 발송 모드'를 자유롭게 전환할 수 있어 운영 효율성을 높였습니다.
+    - `POST /api/admin/setting/reservation`: 예약 사용 여부(`true/false`) 및 발송 시각(`HH:mm`) 설정
 
-```
-매일 오전 9시 Scheduler 실행
-    ↓
-오늘 발송 대상 조회 (reserved_at = 오늘)
-    ↓
-금지 시간대 확인
-    ↓
-발송 가능 → Kafka 전송
-발송 불가 → 다음 시간으로 연기
-```
+#### 🔄 처리 흐름 (Processor Logic)
 
+```mermaid
+graph TD
+    A[<b>Reader</b><br/>회원 정보 + 시스템 설정 조회] --> B{<b>Processor</b><br/>시간 계산 로직}
+    
+    B --> C{1. 시스템 예약 활성화?<br/>(API로 변경 가능)}
+    C -- Yes --> D[시스템 설정 시간 선택<br/>(예: 09:00)]
+    C -- No --> E[현재 시간(NOW) 선택]
+    
+    D & E --> F{2. 회원별 DND 사용?}
+    F -- Yes --> G{금지 시간대 겹침?}
+    F -- No --> H[시간 유지]
+    
+    G -- Yes (겹침) --> I[<b>Time Shift</b><br/>금지 해제 시간(08:00:01)으로 변경]
+    G -- No --> H
+    
+    I & H --> J[<b>Writer</b><br/>MESSAGE 테이블 저장]
+  ```
 </details>
-<br>
 
 ##  핵심 성과
 
@@ -394,13 +429,13 @@ environment:
 environment:
   # 리스너 2개 선언
   KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
-  
+
   # 외부 접속용 (localhost:9092)
   KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-  
+
   # 내부 통신용 (kafka:29092)
   KAFKA_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://kafka:29093
-  
+
   # 내부 통신은 kafka:29092 사용
   KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
 
