@@ -26,7 +26,7 @@
 | :---------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------: |
 | [<img src="https://github.com/rladntlr.png" width="150" height="150"><br/>@rladntlr](https://github.com/rladntlr) | [<img src="https://github.com/ljh5918.png" width="150" height="150"><br/>@ljh5918](https://github.com/ljh5918) | [<img src="https://github.com/seongejae.png" width="150" height="150"><br/>@seongejae](https://github.com/seongejae) | [<img src="https://github.com/ChoiBoKeun1.png" width="150" height="150"><br/>@ChoiBoKeun1](https://github.com/ChoiBoKeun1) | [<img src="https://github.com/semsemin.png" width="150" height="150"><br/>@semsemin](https://github.com/semsemin) |
 |                                                    **Backend**                                                    |                                             **Backend / Frontend**                                             |                                                     **Backend**                                                      |                                                        **Backend**                                                         |                                                    **Backend**                                                    |
-|                                         역할 및 담당 기능<br>작성해주세요                                         |                                       역할 및 담당 기능<br>작성해주세요                                        |                                          역할 및 담당 기능<br>작성해주세요                                           |                                 더미데이터 생성 로직 구현 <br> Spring Batch 정산 로직 구현                                 |                                         역할 및 담당 기능<br>작성해주세요                                         |
+|                                         역할 및 담당 기능<br>작성해주세요                                         |                                       역할 및 담당 기능<br>작성해주세요                                        |                        Spring Batch Job/Step 구조 설계<br> 스케줄러 구현 기능<br>작성해주세요                        |                                 더미데이터 생성 로직 구현 <br> Spring Batch 정산 로직 구현                                 |                                         역할 및 담당 기능<br>작성해주세요                                         |
 
 <br>
 
@@ -942,23 +942,26 @@ public List<Long> sendBatch(List<NotificationEvent> events) {
 <summary>프론트엔드 ID 정밀도 손실 문제 (JavaScript Precision Loss)</summary>
 
 ### 1. 문제 상황
+
 프론트엔드 대시보드에서 `messageId`를 표시할 때, **원본 데이터와 다른 값이 출력되거나 뒷자리가 0으로 바뀌며 반올림되는 현상**이 발생했습니다.
-* **DB 저장값:** `9223372036854775807`
-* **브라우저 표시값:** `9223372036854776000` (왜곡 발생)
+
+- **DB 저장값:** `9223372036854775807`
+- **브라우저 표시값:** `9223372036854776000` (왜곡 발생)
 
 ### 2. 원인 분석
-* **JavaScript 숫자 표현 한계**: JavaScript의 `number` 타입은 IEEE 754 부동 소수점 방식을 사용하며, 안전하게 표현할 수 있는 최대 정수는 $2^{53} - 1$ (약 16자리, `Number.MAX_SAFE_INTEGER`)입니다.
-* **TSID 도입에 따른 범위 초과**: 배치 성능 향상을 위해 도입한 **18자리의 TSID**는 이 안전 범위를 초과합니다.
-* **정밀도 손실(Precision Loss)**: 브라우저가 JSON 데이터를 파싱하여 숫자로 변환하는 과정에서 범위를 벗어난 값을 가장 가까운 근사치로 처리하여 데이터 무결성이 깨졌습니다.
 
-
+- **JavaScript 숫자 표현 한계**: JavaScript의 `number` 타입은 IEEE 754 부동 소수점 방식을 사용하며, 안전하게 표현할 수 있는 최대 정수는 $2^{53} - 1$ (약 16자리, `Number.MAX_SAFE_INTEGER`)입니다.
+- **TSID 도입에 따른 범위 초과**: 배치 성능 향상을 위해 도입한 **18자리의 TSID**는 이 안전 범위를 초과합니다.
+- **정밀도 손실(Precision Loss)**: 브라우저가 JSON 데이터를 파싱하여 숫자로 변환하는 과정에서 범위를 벗어난 값을 가장 가까운 근사치로 처리하여 데이터 무결성이 깨졌습니다.
 
 ### 3. 해결 시도 및 결과
-* **해결 방안**: 해당 ID값은 수치 계산용이 아닌 식별용 데이터이므로, 백엔드 직렬화 단계에서 **문자열(String)**로 변환하여 전달하도록 설정했습니다.
-* **적용 코드 (Java)**:
+
+- **해결 방안**: 해당 ID값은 수치 계산용이 아닌 식별용 데이터이므로, 백엔드 직렬화 단계에서 **문자열(String)**로 변환하여 전달하도록 설정했습니다.
+- **적용 코드 (Java)**:
   ```java
   @JsonSerialize(using = ToStringSerializer.class)
   private Long messageId;
+  ```
 
 </details>
 
@@ -970,8 +973,8 @@ public List<Long> sendBatch(List<NotificationEvent> events) {
 - **데이터 규모:** 회원 100만 명, 사용 이력 500만 건.
 - **목표:** 월간 정산 배치를 통해 청구서(Billing) 100만 건과 청구 상세(Billing Item) 500만 건을 생성 및 저장.
 - **기술 스택 선정:**
-    - 대용량 데이터의 고속 처리를 최우선으로 고려.
-    - JPA의 **영속성 컨텍스트(Persistence Context) 오버헤드**를 제거하고, Native Query 수준의 **Bulk Insert**를 지원하는 `JdbcTemplate`을 채택.
+  - 대용량 데이터의 고속 처리를 최우선으로 고려.
+  - JPA의 **영속성 컨텍스트(Persistence Context) 오버헤드**를 제거하고, Native Query 수준의 **Bulk Insert**를 지원하는 `JdbcTemplate`을 채택.
 
 ### 2. 문제 상황: Auto Increment의 딜레마 (The Bottleneck)
 
@@ -981,9 +984,9 @@ public List<Long> sendBatch(List<NotificationEvent> events) {
 
 - **구조적 제약:** 자식 테이블(`BILLING_ITEM`)을 저장하려면, 부모 테이블(`BILLING`)이 먼저 저장된 후 생성된 PK(`billing_id`)를 알아야 함.
 - **비효율적인 프로세스:**
-    1. `BILLING` 1건 Insert.
-    2. JDBC `GeneratedKeyHolder`를 통해 DB가 생성한 ID를 반환받음 (Network Round-trip 발생).
-    3. 반환받은 ID를 사용하여 `BILLING_ITEM` N건 Insert.
+  1. `BILLING` 1건 Insert.
+  2. JDBC `GeneratedKeyHolder`를 통해 DB가 생성한 ID를 반환받음 (Network Round-trip 발생).
+  3. 반환받은 ID를 사용하여 `BILLING_ITEM` N건 Insert.
 - **결과:** DB 레벨의 **Bulk Insert 기능을 전혀 활용할 수 없음.** 데이터 1건마다 'Insert + Key Return'이 반복되어 대용량 처리 시 속도가 현저히 저하됨.
 
 ## 3. 실패한 시도: 멀티스레드 병렬 처리 (The Attempt & Failure)
@@ -992,8 +995,8 @@ public List<Long> sendBatch(List<NotificationEvent> events) {
 
 - **시도:** 10개의 스레드가 동시에 청구서를 생성 및 저장하여 Throughput(처리량)을 높이려 함.
 - **치명적 부작용:**
-    1. **데이터 정합성 이슈:** 배치 종료 후 일부 데이터가 누락되거나 저장되지 않는 현상 발생.
-    2. **운영 복잡도 증가:** 배치 실패 시 가장 중요한 기능인 **'재시작(Restartable)'**을 보장할 수 없음 (병렬 처리로 인해 커서 추적 불가).
+  1. **데이터 정합성 이슈:** 배치 종료 후 일부 데이터가 누락되거나 저장되지 않는 현상 발생.
+  2. **운영 복잡도 증가:** 배치 실패 시 가장 중요한 기능인 **'재시작(Restartable)'**을 보장할 수 없음 (병렬 처리로 인해 커서 추적 불가).
 - **판단:** "속도를 위해 데이터의 신뢰성을 포기할 수 없다"는 생각하에 롤백 결정.
 
 ## **4. 해결 전략: TSID 도입과 단일 스레드 Bulk Insert (The Solution)**
@@ -1005,12 +1008,12 @@ public List<Long> sendBatch(List<NotificationEvent> events) {
 
 - ID 생성 방식으로 UUID를 고려했으나, 기존 시스템과의 호환성을 위해 **TSID(Time-Sorted ID)**를 최종 선택
 - **UUID의 문제점:**
-    - 128bit 문자열 구조로, 기존 `BIGINT`(64bit) 타입의 PK 컬럼을 모두 수정해야 함 (스키마 변경 비용 과다).
-    - 무작위 생성으로 인해 인덱스 정렬 성능(Clustered Index)이 저하됨.
+  - 128bit 문자열 구조로, 기존 `BIGINT`(64bit) 타입의 PK 컬럼을 모두 수정해야 함 (스키마 변경 비용 과다).
+  - 무작위 생성으로 인해 인덱스 정렬 성능(Clustered Index)이 저하됨.
 - **TSID의 이점:**
-    - **64bit Long 타입:** 기존 `BIGINT` 컬럼에 그대로 저장 가능 (스키마 변경 불필요).
-    - **시간순 정렬:** 생성 시간 순서대로 정렬되므로 DB 인덱싱 성능이 우수함.
-    - **고유성 보장:** 밀리초 단위 시간 + 노드 ID + 시퀀스로 전역 유일성 보장.
+  - **64bit Long 타입:** 기존 `BIGINT` 컬럼에 그대로 저장 가능 (스키마 변경 불필요).
+  - **시간순 정렬:** 생성 시간 순서대로 정렬되므로 DB 인덱싱 성능이 우수함.
+  - **고유성 보장:** 밀리초 단위 시간 + 노드 ID + 시퀀스로 전역 유일성 보장.
 
 ### 4.2. 아키텍처 변화
 
