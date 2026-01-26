@@ -55,7 +55,7 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
     @Override
     public void write(Chunk<? extends BillingPack> chunk) {
 //        log.info(">>> [Writer] Saving Chunk... (Size: {} items)", chunk.getItems().size());
-        long startTime = System.currentTimeMillis();
+        //long startTime = System.currentTimeMillis();
 
         List<Object[]> billingArgs = new ArrayList<>();
         List<Object[]> itemArgs = new ArrayList<>();
@@ -153,8 +153,8 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
         if (!discountArgs.isEmpty()) jdbcTemplate.batchUpdate(BillingSqls.INSERT_BILLING_DISCOUNT, discountArgs); // [New]
         if (!messageArgs.isEmpty()) jdbcTemplate.batchUpdate(BillingSqls.INSERT_MESSAGE, messageArgs);
 
-        long endTime = System.currentTimeMillis();
-        log.info(">>> [Writer] Saved Complete. (Time taken: {}ms)", (endTime - startTime));
+        //long endTime = System.currentTimeMillis();
+        //log.info(">>> [Writer] Saved Complete. (Time taken: {}ms)", (endTime - startTime));
     }
 
     /**

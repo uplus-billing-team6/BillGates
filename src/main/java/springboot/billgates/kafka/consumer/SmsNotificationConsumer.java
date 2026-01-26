@@ -31,7 +31,7 @@ public class SmsNotificationConsumer {
     public void consume(List<NotificationEvent> events) {
         if (events.isEmpty()) return;
 
-        log.info("[{}] 배치 수신 - size={}", CHANNEL, events.size());
+        //log.info("[{}] 배치 수신 - size={}", CHANNEL, events.size());
 
         // Factory를 통해 적절한 MessageSender 획득
         MessageSender sender = senderFactory.getSender(CHANNEL);
