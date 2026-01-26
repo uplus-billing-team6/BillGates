@@ -114,7 +114,7 @@
 
 ## ERD
 
-<img width="2378" height="1362" alt="유레카 종합프로젝트 6조 (2)" src="https://github.com/user-attachments/assets/65707240-6164-4252-8564-e2174ee2b8ea" />
+<img width="2378" height="1362" alt="유레카 종합프로젝트 6조 (2)" src="https://private-user-images.githubusercontent.com/84448281/540379338-8c21b02d-0cfe-4237-b405-64cbef967ae5.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3Njk0MTExNjAsIm5iZiI6MTc2OTQxMDg2MCwicGF0aCI6Ii84NDQ0ODI4MS81NDAzNzkzMzgtOGMyMWIwMmQtMGNmZS00MjM3LWI0MDUtNjRjYmVmOTY3YWU1LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNjAxMjYlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjYwMTI2VDA3MDEwMFomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTJkYzgwYWY3NmI2YWVlMzhlMDgxYWY3MmUxMWZjNDlhZTM0YWZhNDRmNzUwOGJhMzIxZThiZjVhZGUwYTJmNDEmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.EIiJsw7LAAQE54Qd4OmJftArsOT9EAY9sJKRH9XCyOU" />
 
 <br>
 <br>
