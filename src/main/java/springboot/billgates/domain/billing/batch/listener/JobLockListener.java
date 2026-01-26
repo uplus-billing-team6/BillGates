@@ -1,9 +1,11 @@
 package springboot.billgates.domain.billing.batch.listener;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.UUID;
 
+import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.batch.core.JobParameters;
@@ -23,7 +25,7 @@ public class JobLockListener implements JobExecutionListener {
 
     private final StringRedisTemplate redisTemplate;
     
-    // Lua Script: 키가 존재하고, 값이 기대한 값(UUID)과 같을 때만 삭제
+    // Lua Script (기존 동일)
     private static final String UNLOCK_SCRIPT = 
             "if redis.call('get', KEYS[1]) == ARGV[1] then " +
             "   return redis.call('del', KEYS[1]) " +
@@ -33,54 +35,66 @@ public class JobLockListener implements JobExecutionListener {
 
     @Override
     public void beforeJob(JobExecution jobExecution) {
+        // ... (기존 로직 동일: 락 획득) ...
         JobParameters parameters = jobExecution.getJobParameters();
         String billingMonth = parameters.getString("billingMonth", "unknown");
         String lockKey = "LOCK:billingJob:" + billingMonth;
         
-        // 고유 식별자(Token) 생성 (이 실행 인스턴스만의 ID)
         String lockToken = UUID.randomUUID().toString();
         
-        // Redis에 (Key, Token) 저장. NX(없을 때만), 1시간 만료
         Boolean isLocked = redisTemplate.opsForValue()
                 .setIfAbsent(lockKey, lockToken, Duration.ofHours(24));
         
         if (isLocked == null || !isLocked) {
             log.warn(">>> 이미 실행 중인 배치입니다. (Key: {})", lockKey);
-            // 예외를 던져서 Job 실행 자체를 막음
             throw new CustomException(ErrorCode.REDIS_LOCK_FAILED);
         }
         
-        // 해제(afterJob) 때 확인하기 위해 ExecutionContext에 토큰 저장
         jobExecution.getExecutionContext().putString("LOCK_TOKEN", lockToken);
         
-        log.info(">>> 배치 락 획득 성공 (Key: {}, Token: {})", lockKey, lockToken);
+        // 🚀 [추가] 시작 로그 강조
+        log.info("=================================================================");
+        log.info("🚀 [BillGates] 정산 배치를 시작합니다! (Month: {})", billingMonth);
+        log.info("=================================================================");
     }
 
     @Override
     public void afterJob(JobExecution jobExecution) {
+        // 1. Redis 락 해제 (기존 로직)
         JobParameters parameters = jobExecution.getJobParameters();
         String billingMonth = parameters.getString("billingMonth", "unknown");
         String lockKey = "LOCK:billingJob:" + billingMonth;
-        
-        // 아까 저장해둔 내 토큰 꺼내기
         String myToken = jobExecution.getExecutionContext().getString("LOCK_TOKEN");
         
-        if (myToken == null) {
-            // 락 획득 실패 후 예외가 터져서 넘어온 경우 등
-            return;
+        if (myToken != null) {
+            DefaultRedisScript<Long> redisScript = new DefaultRedisScript<>();
+            redisScript.setScriptText(UNLOCK_SCRIPT);
+            redisScript.setResultType(Long.class);
+            redisTemplate.execute(redisScript, Collections.singletonList(lockKey), myToken);
         }
 
-        // Lua Script 실행 (내 토큰일 때만 삭제)
-        DefaultRedisScript<Long> redisScript = new DefaultRedisScript<>();
-        redisScript.setScriptText(UNLOCK_SCRIPT);
-        redisScript.setResultType(Long.class);
+        // 🚀 [추가] 종료 리포트 출력 (이게 없어서 허전했던 것!)
+        calculateAndPrintReport(jobExecution, billingMonth);
+    }
 
-        Long result = redisTemplate.execute(redisScript, Collections.singletonList(lockKey), myToken);
+    // 📊 리포트 출력 메서드
+    private void calculateAndPrintReport(JobExecution jobExecution, String billingMonth) {
+        LocalDateTime startTime = jobExecution.getCreateTime();
+        LocalDateTime endTime = LocalDateTime.now();
+        long duration = java.time.Duration.between(startTime, endTime).toMillis();
+        
+        BatchStatus status = jobExecution.getStatus();
+        String icon = (status == BatchStatus.COMPLETED) ? "✅" : "❌";
 
-        if (result != null && result > 0) {
-            log.info(">>> 배치 락 정상 해제 완료 (Key: {})", lockKey);
-        } else {
-            log.warn(">>> 배치 락 해제 실패 또는 이미 만료됨 (Key: {}, MyToken: {})", lockKey, myToken);
-        }
+        log.info("");
+        log.info("=================================================================");
+        log.info("   {} [BillGates] 정산 배치 종료 리포트 (Month: {})", icon, billingMonth);
+        log.info("=================================================================");
+        log.info("👉 최종 상태   : {}", status);
+        log.info("👉 시작 시간   : {}", startTime);
+        log.info("👉 종료 시간   : {}", endTime);
+        log.info("⏱️ 총 소요 시간 : {} ms (약 {}초)", duration, String.format("%.2f", duration / 1000.0));
+        log.info("=================================================================");
+        log.info("");
     }
 }
