@@ -27,7 +27,7 @@ public class MessageHistoryService {
                     "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) VALUES (?, ?, ?, ?, ?, ?)",
                     historyArgs
             );
-            log.info("[히스토리] 비동기 저장 완료 - {} 건", historyArgs.size());
+            //log.info("[히스토리] 비동기 저장 완료 - {} 건", historyArgs.size());
         } catch (Exception e) {
             log.error("[히스토리] 비동기 저장 실패 - {} 건, error: {}", historyArgs.size(), e.getMessage());
         }
