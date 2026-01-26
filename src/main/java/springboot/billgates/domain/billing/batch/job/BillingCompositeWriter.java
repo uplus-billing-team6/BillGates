@@ -11,6 +11,7 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import springboot.billgates.domain.admin.repository.ReservationSettingRepository;
 import springboot.billgates.domain.billing.batch.dto.BillingPack;
+import springboot.billgates.domain.billing.batch.model.BillingDiscountModel;
 import springboot.billgates.domain.billing.batch.model.BillingItemModel;
 import springboot.billgates.domain.billing.batch.sql.BillingSqls;
 import springboot.billgates.entity.ReservationSetting;
@@ -56,6 +57,7 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
 
         List<Object[]> billingArgs = new ArrayList<>();
         List<Object[]> itemArgs = new ArrayList<>();
+        List<Object[]> discountArgs = new ArrayList<>();
         List<Object[]> messageArgs = new ArrayList<>();
 
         LocalDateTime now = LocalDateTime.now();
@@ -68,6 +70,8 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
                 billingId,
                 pack.getBilling().getMemberId(),
                 pack.getBilling().getBillingMonth(),
+                pack.getBilling().getOriginalAmount(),
+                pack.getBilling().getTotalDiscountAmount(),
                 pack.getBilling().getTotalAmount(),
                 Timestamp.valueOf(pack.getBilling().getCreatedAt())
             });
@@ -84,7 +88,22 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
                 }
             }
 
-            // 3. Message 적재
+            // 3. Billing Discount 적재
+            if (pack.getDiscounts() != null && !pack.getDiscounts().isEmpty()) {
+                for (BillingDiscountModel discount : pack.getDiscounts()) {
+                    long discountId = TSID.fast().toLong();
+                    discountArgs.add(new Object[] {
+                        discountId,
+                        billingId,
+                        discount.getPolicyId(),
+                        discount.getDiscountName(),
+                        discount.getDiscountAmount(),
+                        discount.getTargetCategory()
+                    });
+                }
+            }
+
+            // 4. Message 적재
             LocalDateTime baseTime = this.isGlobalReservation ? this.cachedGlobalBaseTime : now;
             long messageId = TSID.fast().toLong();
             LocalDateTime reservedAt = calculateReservedTime(baseTime, pack);
@@ -93,9 +112,15 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
             variables.put("email", pack.getEmail());
             variables.put("phoneNumber", pack.getPhoneNumber());
             variables.put("month", pack.getBilling().getBillingMonth());
+
+            // 3가지 금액
+            variables.put("originalAmount", formatMoney(pack.getBilling().getOriginalAmount()));
+            variables.put("discountAmount", "-" + formatMoney(pack.getBilling().getTotalDiscountAmount()));
             variables.put("totalAmount", formatMoney(pack.getBilling().getTotalAmount()));
-            String itemListString = generateItemListString(pack.getItems());
-            variables.put("itemList", itemListString);
+
+            // 상세 목록 문자열 생성
+            variables.put("itemList", generateItemListString(pack.getItems()));
+            variables.put("discountList", generateDiscountListString(pack.getDiscounts()));
 
             String jsonBody = "{}";
             try {
@@ -123,6 +148,7 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
         // Bulk Insert 실행
         if (!billingArgs.isEmpty()) jdbcTemplate.batchUpdate(BillingSqls.INSERT_BILLING, billingArgs);
         if (!itemArgs.isEmpty()) jdbcTemplate.batchUpdate(BillingSqls.INSERT_BILLING_ITEM, itemArgs);
+        if (!discountArgs.isEmpty()) jdbcTemplate.batchUpdate(BillingSqls.INSERT_BILLING_DISCOUNT, discountArgs); // [New]
         if (!messageArgs.isEmpty()) jdbcTemplate.batchUpdate(BillingSqls.INSERT_MESSAGE, messageArgs);
 
         long endTime = System.currentTimeMillis();
@@ -194,6 +220,19 @@ public class BillingCompositeWriter implements ItemWriter<BillingPack> {
               .append(item.getItemName())
               .append(": ")
               .append(formatMoney(item.getAmount()))
+              .append("원\n");
+        }
+        return sb.toString().trim();
+    }
+
+    private String generateDiscountListString(List<BillingDiscountModel> discounts) {
+        if (discounts == null || discounts.isEmpty()) return "- 할인 내역 없음";
+        StringBuilder sb = new StringBuilder();
+        for (BillingDiscountModel discount : discounts) {
+            sb.append("- ")
+              .append(discount.getDiscountName())
+              .append(": -")
+              .append(formatMoney(discount.getDiscountAmount()))
               .append("원\n");
         }
         return sb.toString().trim();

@@ -2,10 +2,13 @@ package springboot.billgates.domain.billing.batch.job;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.item.*;
+import org.springframework.jdbc.core.JdbcTemplate;
 import springboot.billgates.domain.billing.batch.dto.BillingPack;
 import springboot.billgates.domain.billing.batch.dto.BillingJoinRow;
+import springboot.billgates.domain.billing.batch.model.DiscountPolicyModel;
 import springboot.billgates.domain.billing.batch.model.BillingModel;
 import springboot.billgates.domain.billing.batch.model.BillingItemModel;
+import springboot.billgates.domain.billing.batch.sql.BillingSqls;
 
 import java.sql.Time;
 import java.time.LocalDateTime;
@@ -15,13 +18,15 @@ import java.util.List;
 @Slf4j
 public class BillingGroupReader implements ItemStreamReader<BillingPack> {
     private final ItemReader<BillingJoinRow> delegate; // DB에서 한 줄씩 읽어오는 진짜 Reader
-    private BillingJoinRow cachedRow; // 다음 사람 데이터를 미리 읽었을 때 잠시 보관하는 변수
     private final String billingMonth; // 파라미터
+    private final JdbcTemplate jdbcTemplate;
 
+    private BillingJoinRow cachedRow; // 다음 사람 데이터를 미리 읽었을 때 잠시 보관하는 변수
 
-    public BillingGroupReader(ItemReader<BillingJoinRow> delegate, String billingMonth) {
+    public BillingGroupReader(ItemReader<BillingJoinRow> delegate, String billingMonth, JdbcTemplate jdbcTemplate) {
         this.delegate = delegate;
         this.billingMonth = billingMonth;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
@@ -43,7 +48,6 @@ public class BillingGroupReader implements ItemStreamReader<BillingPack> {
         Time dndEndTime = cachedRow.getDndEndTime();
 
         List<BillingItemModel> items = new ArrayList<>();
-        long totalAmount = 0;
 
         // 3. 같은 회원이면 계속 읽어서 리스트에 담기 (Grouping)
         while (cachedRow != null && cachedRow.getMemberId().equals(currentMemberId)) {
@@ -54,28 +58,22 @@ public class BillingGroupReader implements ItemStreamReader<BillingPack> {
                                       .amount(cachedRow.getAmount())
                                       .build());
 
-            totalAmount += cachedRow.getAmount();
-
             // 다음 줄 읽기
             cachedRow = delegate.read();
         }
 
+        // [New] 회원의 보유 할인 정책 조회 (N+1 문제 같지만, Batch FetchSize 단위로 돌고 인덱스 타므로 괜찮음)
+        List<DiscountPolicyModel> activePolicies = fetchMemberPolicies(currentMemberId);
+
         // 4. 회원이 바뀌었거나 데이터가 끝났으면, 지금까지 모은 걸 포장(Pack)해서 리턴
-
-        // (금액 0원 체크는 여기서 해도 됨)
-        if (totalAmount == 0) {
-            // 0원이면 다음 사람 처리를 위해 재귀 호출하거나 null 리턴?
-            // 배치 흐름상 null 리턴은 '배치 종료' 의미이므로,
-            // 0원인 경우도 일단 Pack으로 넘기고 Writer에서 무시하는 게 안전함.
-            // 하지만 여기서는 Writer 로직 유지를 위해 그대로 생성.
-        }
-
         BillingModel billing = BillingModel.builder()
-                                           .memberId(currentMemberId)
-                                           .billingMonth(billingMonth)
-                                           .totalAmount(totalAmount)
-                                           .createdAt(LocalDateTime.now())
-                                           .build();
+                                   .memberId(currentMemberId)
+                                   .billingMonth(billingMonth)
+                                   .totalAmount(0L)
+                                   .totalDiscountAmount(0L)
+                                   .originalAmount(0L)
+                                   .createdAt(LocalDateTime.now())
+                                   .build();
 
         return BillingPack.builder()
                           .email(currentEmail)
@@ -85,7 +83,21 @@ public class BillingGroupReader implements ItemStreamReader<BillingPack> {
                           .dndEndTime(dndEndTime)
                           .billing(billing)
                           .items(items)
+                          .discountPolicies(activePolicies)
                           .build();
+    }
+
+    private List<DiscountPolicyModel> fetchMemberPolicies(Long memberId) {
+        return jdbcTemplate.query(BillingSqls.SELECT_MEMBER_POLICIES,
+            (rs, rowNum) -> DiscountPolicyModel.builder()
+                                               .policyId(rs.getLong("policy_id"))
+                                               .name(rs.getString("name"))
+                                               .discountType(rs.getString("discount_type"))
+                                               .discountValue(rs.getLong("discount_value"))
+                                               .targetCategory(rs.getString("target_category"))
+                                               .build(),
+            memberId
+        );
     }
 
     @Override
