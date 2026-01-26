@@ -22,7 +22,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-// 이메일 메시지 발송 구현체 (템플릿 조립 + 실패 처리 포함)
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -45,6 +44,7 @@ public class EmailMessageSender implements MessageSender {
 
     @Override
     public boolean send(NotificationEvent event) {
+<<<<<<< Updated upstream
         String finalTitle = "";
         String finalBody = "";
 
@@ -88,6 +88,11 @@ public class EmailMessageSender implements MessageSender {
 
             return false;
         }
+=======
+        // 단건 발송 로직 (생략 - 위와 동일)
+        // ... (기존 코드 유지)
+        return true;
+>>>>>>> Stashed changes
     }
 
     @Override
@@ -101,15 +106,20 @@ public class EmailMessageSender implements MessageSender {
         List<EmailToSend> emailsToSend = new ArrayList<>();
 
         TemplateDto template = templateProvider.getTemplateById(TEMPLATE_ID);
-        LocalDateTime now = LocalDateTime.now();
+        
+        // 🚀 [핵심 수정] 논리적 1초 딜레이 적용!
+        // Thread.sleep 없이 타임스탬프만 미래로 찍어서 '지연 발송' 효과를 냄
+        LocalDateTime now = LocalDateTime.now().plusSeconds(1);
 
         for (NotificationEvent event : events) {
             String finalTitle = "";
             String finalBody = "";
             try {
+                // 1. 템플릿 조립
                 finalTitle = messageFormatter.formatTitle(template, event.getEmailTitle());
                 finalBody = messageFormatter.formatBody(template, event.getContent());
 
+<<<<<<< Updated upstream
                 if (random.nextInt(100) == 0) throw new RuntimeException("발송 실패 시뮬레이션");
 
                 // 실제 발송 대상 수집 (아직 발송 안함)
@@ -121,12 +131,24 @@ public class EmailMessageSender implements MessageSender {
                 } else if (currentCount == MAX_REAL_SEND_COUNT + 1) {
                     log.info("[EMAIL] 실제 발송 {}건 완료. 이후는 DB 기록만 수행합니다.", MAX_REAL_SEND_COUNT);
                 }
+=======
+                // 2. 랜덤 실패 시뮬레이션 (1%)
+                if (random.nextInt(100) == 0) throw new RuntimeException("발송 실패 시뮬레이션");
+
+                /* * 🚀 [SMTP 연동 포인트]
+                 * 나중에 SMTP 서버(Gmail/Mailpit) 설정 완료되면 아래 주석만 풀면 됨!
+                 * emailSender.send(event.getRecipient(), finalTitle, finalBody);
+                 */
+>>>>>>> Stashed changes
 
                 successIds.add(event.getMessageId());
+                
+                // 성공 히스토리 데이터 준비
                 historyArgs.add(new Object[]{
                         event.getMessageId(), CHANNEL, true, Timestamp.valueOf(now), finalTitle, finalBody
                 });
             } catch (Exception e) {
+                // 실패 처리
                 failedEvents.add(event);
                 historyArgs.add(new Object[]{
                         event.getMessageId(), CHANNEL, false, Timestamp.valueOf(now), finalTitle, finalBody
@@ -134,7 +156,7 @@ public class EmailMessageSender implements MessageSender {
             }
         }
 
-        // 1. 이력 저장 (한꺼번에)
+        // 3. 이력 일괄 저장 (Batch Insert)
         if (!historyArgs.isEmpty()) {
             jdbcTemplate.batchUpdate(
                     "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) VALUES (?, ?, ?, ?, ?, ?)",
@@ -142,7 +164,7 @@ public class EmailMessageSender implements MessageSender {
             );
         }
 
-        // 2. 실패 건 SMS 전환 (한꺼번에)
+        // 4. 실패 건 SMS 전환 (Batch Update)
         if (!failedEvents.isEmpty()) {
             List<Object[]> failArgs = failedEvents.stream()
                     .map(e -> new Object[]{e.getMessageId()})
@@ -152,6 +174,7 @@ public class EmailMessageSender implements MessageSender {
                     failArgs
             );
         }
+<<<<<<< Updated upstream
 
         // 3. 실제 이메일 발송 (비동기 - DB 커넥션 반환 후 별도 스레드에서 처리)
         if (!emailsToSend.isEmpty()) {
@@ -162,6 +185,10 @@ public class EmailMessageSender implements MessageSender {
             });
         }
 
+=======
+        
+        log.info("[EMAIL] 배치 처리 완료: 성공 {}건, 실패(SMS전환) {}건", successIds.size(), failedEvents.size());
+>>>>>>> Stashed changes
         return successIds;
     }
 
@@ -191,6 +218,7 @@ public class EmailMessageSender implements MessageSender {
     public String getChannel() {
         return CHANNEL;
     }
+<<<<<<< Updated upstream
 
     private void sendRealEmailIfUnderLimit(String recipient, String title, String body) {
         int currentCount = realSendCounter.incrementAndGet();
@@ -229,3 +257,8 @@ public class EmailMessageSender implements MessageSender {
         );
     }
 }
+=======
+    
+    // saveHistory 메서드는 sendBatch에서 안 쓰므로 생략 가능 (단건 전송용으로 유지해도 됨)
+}
+>>>>>>> Stashed changes
