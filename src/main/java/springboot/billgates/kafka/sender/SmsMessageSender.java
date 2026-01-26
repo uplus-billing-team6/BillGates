@@ -45,8 +45,8 @@ public class SmsMessageSender implements MessageSender {
             // 2. 실제 SMS 발송 로직
             // smsSender.send(event.getRecipient(), finalBody);
 
-            log.info("[SMS] 발송 성공 - messageId: {}, recipient: {}",
-                    event.getMessageId(), event.getRecipient());
+            //log.info("[SMS] 발송 성공 - messageId: {}, recipient: {}",
+            //        event.getMessageId(), event.getRecipient());
 
             // 3. History 저장 (성공)
             saveHistory(event.getMessageId(), true, finalTitle, finalBody);

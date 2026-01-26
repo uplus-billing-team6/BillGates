@@ -66,8 +66,8 @@ public class EmailMessageSender implements MessageSender {
             // 3. 실제 이메일 발송 로직 (처음 100건만)
             sendRealEmailIfUnderLimit(event.getRecipient(), finalTitle, finalBody);
 
-            log.info("[EMAIL] 발송 성공 - messageId: {}, recipient: {}",
-                    event.getMessageId(), event.getRecipient());
+            //log.info("[EMAIL] 발송 성공 - messageId: {}, recipient: {}",
+            //        event.getMessageId(), event.getRecipient());
 
             // 4. History 저장 (성공)
             saveHistory(event.getMessageId(), true, finalTitle, finalBody);
@@ -75,7 +75,7 @@ public class EmailMessageSender implements MessageSender {
             return true;
 
         } catch (Exception e) {
-            log.warn("[EMAIL] 발송 실패 → SMS 전환 - messageId: {}", event.getMessageId());
+            //log.warn("[EMAIL] 발송 실패 → SMS 전환 - messageId: {}", event.getMessageId());
 
             // History 저장 (실패)
             saveHistory(event.getMessageId(), false, finalTitle, finalBody);
@@ -169,7 +169,7 @@ public class EmailMessageSender implements MessageSender {
             });
         }
 
-        log.info("[EMAIL] 배치 처리 완료: 성공 {}건, 실패(SMS전환) {}건", successIds.size(), failUpdateArgs.size());
+        //log.info("[EMAIL] 배치 처리 완료: 성공 {}건, 실패(SMS전환) {}건", successIds.size(), failUpdateArgs.size());
         return successIds;
     }
 
@@ -188,8 +188,8 @@ public class EmailMessageSender implements MessageSender {
             helper.setText(email.body, true);
 
             mailSender.send(message);
-            log.info("[EMAIL] 실제 발송 완료 ({}/{}건) - recipient: {}",
-                    email.count, MAX_REAL_SEND_COUNT, encryptUtils.maskEmail(decryptedEmail));
+            //log.info("[EMAIL] 실제 발송 완료 ({}/{}건) - recipient: {}",
+            //        email.count, MAX_REAL_SEND_COUNT, encryptUtils.maskEmail(decryptedEmail));
         } catch (Exception e) {
             log.warn("[EMAIL] 실제 발송 실패 - error: {}", e.getMessage());
         }
@@ -211,8 +211,8 @@ public class EmailMessageSender implements MessageSender {
                 helper.setText(body, true);
 
                 mailSender.send(message);
-                log.info("[EMAIL] 실제 발송 완료 ({}/{}건) - recipient: {}",
-                        currentCount, MAX_REAL_SEND_COUNT, encryptUtils.maskEmail(decryptedEmail));
+                //log.info("[EMAIL] 실제 발송 완료 ({}/{}건) - recipient: {}",
+                //        currentCount, MAX_REAL_SEND_COUNT, encryptUtils.maskEmail(decryptedEmail));
             } catch (Exception e) {
                 log.warn("[EMAIL] 실제 발송 실패 - recipient: {}, error: {}",
                         encryptUtils.maskEmail(encryptUtils.decrypt(recipient)), e.getMessage());
