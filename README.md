@@ -561,6 +561,348 @@ Spring Boot의 기본 `@Scheduled`는 애플리케이션(JVM) 레벨에서 동�
 조회 쿼리를 단 1회로 고정하여 대용량 데이터 처리 시에도 안정적인 DB 성능을 확보했습니다.
 
 </details>
+
+<details>
+<summary><strong> Kafka Partition 수 vs Consumer 동시성</strong></summary>
+# Kafka Partition 수 vs Consumer 동시성
+
+## 배경
+
+Kafka 기반으로 100만 건의 이메일 알림을 발송하는 배치 작업에서 처리 속도가 예상보다 심각하게 느린 현상이 발생했습니다.
+
+## 문제 상황
+
+100만 건의 알림 메시지를 Kafka를 통해 발송할 때, 예상보다 처리 속도가 현저히 느린 현상이 발생했습니다.
+
+- **예상 처리 시간**: 약 10분
+- **실제 처리 시간**: 약 2.7시간
+
+### 이상 징후 - Consumer를 늘렸는데 빨라지지 않는다
+
+Consumer의 Concurrency 설정을 10으로 높였음에도 불구하고 성능 개선이 이루어지지 않았습니다.
+
+```java
+// KafkaConsumerConfig.java
+factory.setConcurrency(10);  // 동시에 10개 스레드로 처리하도록 설정
+```
+
+CPU, 메모리 모두 여유가 있었고 스레드도 정상적으로 생성되어 보였습니다.
+
+## 원인 분석
+
+Kafka의 Partition과 Consumer 관계에 대한 이해 부족이 원인이었습니다.
+
+### Kafka의 핵심 제약
+
+> **"하나의 Partition은 동일 Consumer Group 내에서 오직 하나의 Consumer만 읽을 수 있다"**
+
+이 핵심 제약을 간과하고 있었습니다.
+
+### 초기 설정 상태
+
+```java
+// KafkaConfig.java - Topic 생성
+@Bean
+public NewTopic emailTopic() {
+    return TopicBuilder.name("notification-email")
+            .partitions(3)      // 파티션 3개로 생성
+            .replicas(1)
+            .build();
+}
+
+// KafkaConsumerConfig.java
+factory.setConcurrency(10);  // Consumer 10개로 설정
+```
+
+### 실제 동작 상황
+
+```
+Topic: notification-email (Partition 3개)
+
+  Partition 0  ──→  Consumer 0  ✅ 메시지 처리 중
+  Partition 1  ──→  Consumer 1  ✅ 메시지 처리 중
+  Partition 2  ──→  Consumer 2  ✅ 메시지 처리 중
+                    Consumer 3  ❌ Idle (놀고 있음)
+                    Consumer 4  ❌ Idle (놀고 있음)
+                    Consumer 5  ❌ Idle (놀고 있음)
+                    Consumer 6  ❌ Idle (놀고 있음)
+                    Consumer 7  ❌ Idle (놀고 있음)
+                    Consumer 8  ❌ Idle (놀고 있음)
+                    Consumer 9  ❌ Idle (놀고 있음)
+
+→ Concurrency를 10으로 설정했지만 실제로는 3개 Consumer만 동작
+```
+
+## 해결 과정
+
+### Partition 증가
+
+#### 1차 시도: Partition 3개 → 6개로 증가
+
+```java
+// KafkaConfig.java
+@Bean
+public NewTopic emailTopic() {
+    return TopicBuilder.name("notification-email")
+            .partitions(6)      // 3 → 6개로 증가
+            .replicas(1)
+            .build();
+}
+
+// KafkaConsumerConfig.java
+factory.setConcurrency(6);   // 파티션 수에 맞춰 조정
+```
+
+**결과**: 처리 시간: 2.7시간 → 약 50분 (약 3배 성능 향상)
+
+#### 2차 시도: Partition 6개 → 12개로 증가
+
+```java
+// KafkaConfig.java
+@Bean
+public NewTopic emailTopic() {
+    return TopicBuilder.name("notification-email")
+            .partitions(12)     // 6 → 12개로 증가
+            .replicas(1)
+            .build();
+}
+
+// KafkaConsumerConfig.java
+factory.setConcurrency(10);  // DB Connection Pool(100개) 고려하여 10으로 제한
+```
+
+**결과**: 처리 시간: 50분 → 약 14분 (추가 약 3배 성능 향상)
+
+**최종 성능**: 초기 대비 약 12배 향상
+
+### 주의사항: Partition은 늘릴 수만 있고 줄일 수 없다
+
+| 작업        | 가능 여부 |
+| ----------- | --------- |
+| 파티션 증가 | ✅ 가능   |
+| 파티션 감소 | ❌ 불가능 |
+
+### 줄일 수 없는 이유
+
+Kafka는 Partition 내에서 메시지의 순서를 보장합니다. Partition 수를 줄이면 기존 Partition에 저장된 메시지들의 재배치가 필요한데, 이 과정에서 메시지 순서가 깨질 수 있습니다. Kafka는 데이터 무결성 문제를 원천적으로 방지하기 위해 Partition 감소를 허용하지 않습니다.
+
+### Partition을 줄여야 하는 경우 대안
+
+1. 원하는 Partition 수로 새로운 Topic 생성
+2. 기존 Topic의 데이터를 새 Topic으로 마이그레이션
+3. Consumer가 새 Topic을 바라보도록 설정 변경
+4. 기존 Topic 삭제
+
+### Partition 설계 권장 전략
+
+```
+초기 설계 → 보수적으로 시작 (3~6개)
+         ↓
+      모니터링 및 성능 측정
+         ↓
+필요시   → 점진적 증가 (6 → 12 → 24)
+         ↓
+주의     → 과도하게 늘리지 않기 (되돌릴 수 없음)
+```
+
+## 결과
+
+### 성능 개선 요약
+
+| 단계     | Partition | Concurrency | 처리 시간 | 초당 처리량 |
+| -------- | --------- | ----------- | --------- | ----------- |
+| 초기     | 3         | 10 (실제 3) | 2.7시간   | ~100건      |
+| 1차 개선 | 6         | 6           | 50분      | ~330건      |
+| 2차 개선 | 12        | 10          | 14분      | ~1,200건    |
+
+**최종 성능**: 초기 대비 약 12배 향상
+
+## 핵심 교훈
+
+1. **Concurrency ≤ Partition 수**: Partition보다 Consumer를 많이 만들어도 의미가 없습니다. Concurrency를 Partition 수보다 높게 설정해도 실제로는 Partition 수만큼만 동작합니다.
+2. **Partition 설계의 중요성**: 한번 늘린 Partition은 줄일 수 없으므로 초기 설계가 중요합니다. 보수적으로 시작하여 점진적으로 증가시켜야 합니다.
+3. **리소스 간 균형**: Consumer 수를 늘릴 때 DB Connection Pool 크기도 함께 고려해야 합니다.
+4. **점진적 확장**: 모니터링을 통해 필요시 Partition을 점진적으로 증가시키는 전략이 효과적입니다.
+</details>
+<details>
+<summary><strong> DB Connection Pool 고갈 문제</strong></summary>
+
+## 배경
+
+Partition 개선으로 성능은 좋아졌지만, 일정 시점에서 항상 에러가 발생하며 배치가 중단되는 현상이 발생했습니다.
+
+## 문제 상황
+
+이메일 대량 발송 중 다음과 같은 에러가 발생하며 시스템이 멈추는 현상이 발생했습니다.
+
+```
+HikariPool-1 - Connection is not available, request timed out after 30000ms.
+java.sql.SQLTransientConnectionException: HikariPool-1 - Connection is not available
+```
+
+100만 건 발송 작업 중 약 30% 지점(30만 건 처리 후)에서 DB Connection Pool이 고갈되어 전체 시스템이 멈추는 현상이 반복되었습니다.
+
+### 이상한 점
+
+- Consumer 동시성: 10
+- DB Connection Pool: 100
+
+→ 그런데 왜 고갈?
+
+## 원인 분석
+
+### 결정적 원인 - 트랜잭션 안에서 SMTP 통신
+
+DB Connection을 점유한 상태에서 SMTP 통신(이메일 발송)을 수행하고 있었습니다.
+
+### 기존 코드의 문제
+
+```java
+@Transactional  // ← 메서드 시작 시 DB Connection 획득
+public List<Long> sendBatch(List<NotificationEvent> events) {
+
+    for (NotificationEvent event : events) {
+        // 1. 템플릿 조회 (DB 사용) - 빠름
+        TemplateDto template = templateProvider.getTemplateById(TEMPLATE_ID);
+
+        // 2. 이메일 발송 (SMTP 통신, 평균 300~500ms) - 느림! 여기가 문제!
+        mailSender.send(message);
+
+        // 3. 이력 저장 (DB 사용) - 빠름
+        saveHistory(event.getMessageId(), true, ...);
+    }
+
+    return successIds;
+}  // ← 메서드 종료 시 DB Connection 반환
+```
+
+문제는 DB Connection을 점유한 상태로 외부 SMTP 통신을 기다리고 있다는 점이었습니다.
+
+### 문제 발생 메커니즘
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  DB Connection Pool: 100개                                  │
+│                                                             │
+│  Consumer 1~10: 각각 Connection 점유 중                      │
+│    └─ SMTP 발송 대기... (15초)                              │
+│                                                             │
+│  새로운 요청 → Connection 없음 → 타임아웃!                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 수치로 보는 문제
+
+- **배치 1회(50건) × 이메일 발송(300ms) = 약 15초 동안 Connection 점유**
+- **Consumer 10개 → 동시에 10개 Connection이 각각 15초씩 점유**
+- **새로운 DB 요청 → Connection 부족 → 30초 대기 → 타임아웃**
+
+## 해결 과정
+
+### 핵심 전략: DB 트랜잭션과 외부 I/O 완전 분리
+
+- @Transactional 범위 내에서는 DB 작업만 수행
+- 이메일 발송은 별도 ExecutorService에서 비동기 처리
+
+`@Transactional` 범위 내에서는 DB 작업만 수행하고, SMTP 통신은 트랜잭션이 끝난 후 별도 스레드에서 비동기로 처리합니다.
+
+### 개선된 코드
+
+```java
+// EmailMessageSender.java
+
+// 비동기 이메일 발송용 스레드 풀 (5개 고정)
+private final ExecutorService emailExecutor = Executors.newFixedThreadPool(5);
+
+@Transactional
+public List<Long> sendBatch(List<NotificationEvent> events) {
+    List<Long> successIds = new ArrayList<>();
+
+    // 발송할 이메일 정보를 임시 저장 (아직 발송하지 않음)
+    List<EmailToSend> emailsToSend = new ArrayList<>();
+
+    for (NotificationEvent event : events) {
+        // 템플릿 조회 및 메시지 생성
+        String finalTitle = messageFormatter.formatTitle(template, event.getEmailTitle());
+        String finalBody = messageFormatter.formatBody(template, event.getContent());
+
+        // 발송 대상만 리스트에 수집 (실제 발송은 나중에)
+        emailsToSend.add(new EmailToSend(
+            event.getRecipient(), finalTitle, finalBody
+        ));
+
+        successIds.add(event.getMessageId());
+    }
+
+    // 1. DB 작업: 이력 일괄 저장 (Bulk Insert)
+    jdbcTemplate.batchUpdate(
+        "INSERT IGNORE INTO MESSAGE_SEND_HISTORY ...",
+        historyArgs
+    );
+
+    // 2. 실제 이메일 발송 (비동기 - 트랜잭션 종료 후 별도 스레드에서 처리)
+    if (!emailsToSend.isEmpty()) {
+        emailExecutor.submit(() -> {        // 별도 스레드 풀에서 실행
+            for (EmailToSend email : emailsToSend) {
+                sendRealEmail(email);       // DB Connection 없이 SMTP만 처리
+            }
+        });
+    }
+
+    return successIds;
+}  // @Transactional 종료, DB Connection 즉시 반환!
+```
+
+### 개선된 흐름
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Consumer Thread (DB Connection 사용)                       │
+│                                                             │
+│  1. 템플릿 조회                         10ms                │
+│  2. 발송 대상 수집                       5ms                │
+│  3. 이력 Bulk Insert                   30ms                │
+│  4. emailExecutor.submit() ──┐          1ms                │
+│  5. Connection 반환           │                             │
+│                              │                             │
+│  총 점유 시간: ~46ms         │                             │
+└──────────────────────────────│─────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Email Executor Thread (DB Connection 미사용)               │
+│                                                             │
+│  → SMTP 통신만 수행                                         │
+│  → DB Connection과 완전히 독립적                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### ExecutorService 선택
+
+| 종류                      | 특징                    | 선택 여부      |
+| ------------------------- | ----------------------- | -------------- |
+| newFixedThreadPool(5)     | 고정 5개 스레드, 안정적 | ✅ 선택        |
+| newCachedThreadPool()     | 필요시 스레드 무한 생성 | ❌ 메모리 위험 |
+| newSingleThreadExecutor() | 단일 스레드 순차 처리   | ❌ 느림        |
+
+## 결과
+
+### 성능 개선 요약
+
+| 항목                    | Before        | After             |
+| ----------------------- | ------------- | ----------------- |
+| DB Connection 점유 시간 | 15초/배치     | 46ms/배치         |
+| Connection Pool 사용률  | 100% (고갈)   | 10~20%            |
+| 배치 성공률             | 30%에서 중단  | 100% 완료         |
+| 이메일 발송 방식        | 동기 (블로킹) | 비동기 (논블로킹) |
+
+## 핵심 교훈
+
+1. **외부 I/O는 트랜잭션 밖에서**: SMTP, HTTP 등 외부 통신은 DB 트랜잭션과 완전히 분리해야 합니다. DB Connection을 점유한 상태로 외부 통신을 기다리면 리소스 고갈이 발생합니다.
+2. **@Transactional 범위 최소화**: 트랜잭션 내에서는 순수 DB 작업만 수행해야 합니다. DB Connection 점유 시간을 최소화하는 것이 핵심입니다.
+3. **비동기 처리로 리소스 효율화**: ExecutorService를 활용하여 DB Connection 점유 시간을 단축하고, 외부 I/O는 독립적으로 처리합니다.
+4. **Connection Pool 증설은 근본 해결책이 아니다**: Connection Pool 크기만 늘리는 것은 임시방편일 뿐, 아키텍처 개선이 필요합니다.
+5. **장애는 수치로 증명해야 끝난다**: Before/After 측정을 통해 개선 효과를 명확히 검증해야 합니다.
+</details>
 <br>
 
 ## 실행 방법

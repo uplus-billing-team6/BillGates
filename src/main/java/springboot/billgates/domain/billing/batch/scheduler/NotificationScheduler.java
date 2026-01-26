@@ -1,19 +1,5 @@
 package springboot.billgates.domain.billing.batch.scheduler;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
-import springboot.billgates.entity.Member;
-import springboot.billgates.entity.Message;
-import springboot.billgates.kafka.dto.NotificationEvent;
-import springboot.billgates.kafka.producer.NotificationProducer;
-import springboot.billgates.kafka.service.NotificationEventMapper;
-import springboot.billgates.repository.MessageRepository;
-
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -21,9 +7,26 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import springboot.billgates.entity.Member;
+import springboot.billgates.entity.Message;
+import springboot.billgates.kafka.dto.NotificationEvent;
+import springboot.billgates.kafka.producer.NotificationProducer;
+import springboot.billgates.kafka.service.NotificationEventMapper;
+import springboot.billgates.repository.MessageRepository;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "job.scheduler.enable", havingValue = "true", matchIfMissing = true)
 public class NotificationScheduler {
 
     private final MessageRepository messageRepository;

@@ -1,5 +1,6 @@
 package springboot.billgates.kafka.sender;
 
+import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -9,10 +10,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import springboot.billgates.domain.billing.batch.dto.TemplateDto;
 import springboot.billgates.global.utils.BillingMessageFormatter;
+import springboot.billgates.global.utils.EncryptUtils;
 import springboot.billgates.global.utils.MessageTemplateProvider;
 import springboot.billgates.kafka.dto.NotificationEvent;
-import springboot.billgates.global.utils.EncryptUtils;
-import jakarta.mail.internet.MimeMessage;
+
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -22,7 +23,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-// 이메일 메시지 발송 구현체 (템플릿 조립 + 실패 처리 포함)
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -41,6 +41,7 @@ public class EmailMessageSender implements MessageSender {
     // 실제 이메일 발송 카운터 (처음 100건만 실제 발송)
     private static final int MAX_REAL_SEND_COUNT = 100;
     private final AtomicInteger realSendCounter = new AtomicInteger(0);
+    // 이메일 발송용 별도 스레드 풀
     private final ExecutorService emailExecutor = Executors.newFixedThreadPool(5);
 
     @Override
@@ -52,14 +53,14 @@ public class EmailMessageSender implements MessageSender {
             // 1. 템플릿 조회 및 조립
             TemplateDto template = templateProvider.getTemplateById(TEMPLATE_ID);
             String rawJson = event.getContent();
-            String monthArg = event.getEmailTitle();
+            String monthArg = event.getEmailTitle(); // NotificationEvent의 필드명에 따라 조정 필요
 
             finalTitle = messageFormatter.formatTitle(template, monthArg);
             finalBody = messageFormatter.formatBody(template, rawJson);
 
             // 2. 실패 시뮬레이션 (1% 확률)
             if (random.nextInt(100) == 0) {
-                throw new RuntimeException("이메일 전송 실패");
+                throw new RuntimeException("이메일 전송 실패 시뮬레이션");
             }
 
             // 3. 실제 이메일 발송 로직 (처음 100건만)
@@ -95,24 +96,28 @@ public class EmailMessageSender implements MessageSender {
     public List<Long> sendBatch(List<NotificationEvent> events) {
         List<Long> successIds = new ArrayList<>();
         List<Object[]> historyArgs = new ArrayList<>();
-        List<NotificationEvent> failedEvents = new ArrayList<>();
-
-        // 실제 발송할 이메일 정보 임시 저장 (트랜잭션 끝난 후 발송)
+        List<Object[]> failUpdateArgs = new ArrayList<>();
+        
+        // 실제 발송할 이메일 정보 임시 저장 (DB 작업 후 비동기 발송)
         List<EmailToSend> emailsToSend = new ArrayList<>();
 
         TemplateDto template = templateProvider.getTemplateById(TEMPLATE_ID);
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now().plusSeconds(1);
 
         for (NotificationEvent event : events) {
             String finalTitle = "";
             String finalBody = "";
             try {
+                // 1. 템플릿 조립
                 finalTitle = messageFormatter.formatTitle(template, event.getEmailTitle());
                 finalBody = messageFormatter.formatBody(template, event.getContent());
 
-                if (random.nextInt(100) == 0) throw new RuntimeException("발송 실패 시뮬레이션");
+                // 2. 랜덤 실패 시뮬레이션 (1%)
+                if (random.nextInt(100) == 0) {
+                    throw new RuntimeException("발송 실패 시뮬레이션");
+                }
 
-                // 실제 발송 대상 수집 (아직 발송 안함)
+                // 3. 실제 발송 대상 수집 (DB 작업이 끝난 후 스레드 풀에서 처리)
                 int currentCount = realSendCounter.incrementAndGet();
                 if (currentCount <= MAX_REAL_SEND_COUNT) {
                     emailsToSend.add(new EmailToSend(
@@ -123,18 +128,23 @@ public class EmailMessageSender implements MessageSender {
                 }
 
                 successIds.add(event.getMessageId());
+
+                // 성공 히스토리 데이터 준비
                 historyArgs.add(new Object[]{
                         event.getMessageId(), CHANNEL, true, Timestamp.valueOf(now), finalTitle, finalBody
                 });
+
             } catch (Exception e) {
-                failedEvents.add(event);
+                // 실패 처리 (히스토리에는 실패로 기록, 원본 메시지는 SMS로 전환)
                 historyArgs.add(new Object[]{
                         event.getMessageId(), CHANNEL, false, Timestamp.valueOf(now), finalTitle, finalBody
                 });
+                
+                failUpdateArgs.add(new Object[]{event.getMessageId()});
             }
         }
 
-        // 1. 이력 저장 (한꺼번에)
+        // 4. 이력 일괄 저장 (Batch Insert)
         if (!historyArgs.isEmpty()) {
             jdbcTemplate.batchUpdate(
                     "INSERT IGNORE INTO MESSAGE_SEND_HISTORY (message_id, channel, success, sent_at, title, content) VALUES (?, ?, ?, ?, ?, ?)",
@@ -142,18 +152,15 @@ public class EmailMessageSender implements MessageSender {
             );
         }
 
-        // 2. 실패 건 SMS 전환 (한꺼번에)
-        if (!failedEvents.isEmpty()) {
-            List<Object[]> failArgs = failedEvents.stream()
-                    .map(e -> new Object[]{e.getMessageId()})
-                    .toList();
+        // 5. 실패 건 SMS 전환 (Batch Update)
+        if (!failUpdateArgs.isEmpty()) {
             jdbcTemplate.batchUpdate(
                     "UPDATE MESSAGE SET channel = 'SMS', status = 'DEFERRED', reserved_at = DATE_ADD(NOW(), INTERVAL 1 MINUTE) WHERE message_id = ?",
-                    failArgs
+                    failUpdateArgs
             );
         }
 
-        // 3. 실제 이메일 발송 (비동기 - DB 커넥션 반환 후 별도 스레드에서 처리)
+        // 6. 실제 이메일 발송 (비동기 처리)
         if (!emailsToSend.isEmpty()) {
             emailExecutor.submit(() -> {
                 for (EmailToSend email : emailsToSend) {
@@ -162,8 +169,11 @@ public class EmailMessageSender implements MessageSender {
             });
         }
 
+        log.info("[EMAIL] 배치 처리 완료: 성공 {}건, 실패(SMS전환) {}건", successIds.size(), failUpdateArgs.size());
         return successIds;
     }
+
+    // --- Helper Methods & Classes ---
 
     private void sendRealEmail(EmailToSend email) {
         try {
@@ -185,26 +195,18 @@ public class EmailMessageSender implements MessageSender {
         }
     }
 
-    private record EmailToSend(String recipient, String title, String body, int count) {}
-
-    @Override
-    public String getChannel() {
-        return CHANNEL;
-    }
-
     private void sendRealEmailIfUnderLimit(String recipient, String title, String body) {
         int currentCount = realSendCounter.incrementAndGet();
 
         if (currentCount <= MAX_REAL_SEND_COUNT) {
             try {
-                // 암호화된 이메일 주소 복호화
                 String decryptedEmail = encryptUtils.decrypt(recipient);
 
                 MimeMessage message = mailSender.createMimeMessage();
                 MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
                 helper.setFrom("billing@billgates.com");
-                helper.setTo(decryptedEmail);  // 복호화된 이메일 사용
+                helper.setTo(decryptedEmail);
                 helper.setSubject(title);
                 helper.setText(body, true);
 
@@ -227,5 +229,12 @@ public class EmailMessageSender implements MessageSender {
                         "VALUES (?, ?, ?, ?, ?, ?)",
                 messageId, CHANNEL, success, Timestamp.valueOf(now), title, content
         );
+    }
+
+    private record EmailToSend(String recipient, String title, String body, int count) {}
+
+    @Override
+    public String getChannel() {
+        return CHANNEL;
     }
 }
