@@ -414,6 +414,108 @@ MESSAGE_SEND_HISTORY (결과 저장)
 
 </details>
 
+
+
+<details>
+<summary><strong>6.member_discount_policy 테이블 인덱스 적용</strong></summary>
+
+## 문제 원인
+
+- 조회 쿼리에서 병목은 `member_discount_policy` 테이블
+- `WHERE mdp.member_id = ?` 조건으로 대량 테이블 선필터링 필요
+- 유니크/복합 인덱스가 없을 경우
+  - `member_discount_policy` Table Scan
+  - rows examined ≈ 5,000,000
+  - Hash Join 발생
+  - 실행 시간 13 ~ 86 ms
+- 마스터 테이블(`discount_policy`)은 소량이므로 병목 아님
+
+
+## 시도
+
+### 시나리오 A — 인덱스 없음
+
+- mdp 접근 방식: Table Scan  
+- Join 방식: Hash Join  
+- mdp rows scan: 약 500만  
+- actual time: 13 ~ 86 ms  
+- Handler_read_rnd_next: 34,651,0962  
+- Innodb_rows_read: 367,172,185  
+
+### 시나리오 B — 복합/유니크 인덱스 적용
+
+```sql
+UNIQUE KEY uk_member_policy (member_id, policy_id)
+```
+
+- mdp 접근 방식: Covering Index Lookup  
+- Join 방식: Nested Loop + PK Lookup  
+- mdp rows scan: 1  
+- actual time: 0.03 ~ 0.05 ms  
+- Handler_read_rnd_next: 34,550,7916  
+- Innodb_rows_read: 366,172,177  
+
+
+## 해결 방안
+
+- `member_discount_policy(member_id, policy_id)` 유니크 인덱스 적용
+
+### 효과
+
+- 전체 스캔 제거
+- Hash Join 제거
+- 단건 인덱스 접근 + PK 조인으로 실행 계획 단순화
+- Handler / InnoDB 절대 수치보다  
+  접근 방식이 “전체 스캔 → 단건 인덱스 접근”으로 바뀐 것이 핵심
+
+## 한 줄 요약
+
+- 유니크 인덱스 미적용 시 대량 테이블 스캔과 Hash Join으로 병목이 발생했으나  
+- `(member_id, policy_id)` 유니크 인덱스 적용 후  
+  단건 인덱스 접근 + PK 조인만 수행되어 실행 시간이 수십 ms → 수십 μs로 감소
+
+
+</details>
+
+
+<details>
+<summary><strong>7. message와 billing DB 멱등성 보장</strong></summary>
+
+## 문제 해결 방안 — Billing / Message 멱등성 보장
+
+- 월별 정산 배치 및 메시지 발송은 재시도 가능 구조
+- 네트워크 오류, 재실행, 장애 복구 시  
+  중복 청구 / 중복 메시지 발송 위험 존재
+
+
+
+## 적용한 해결 방식
+
+### Billing 테이블
+
+- `(member_id, billing_month)` 유니크 키 적용
+- 동일 회원·동일 월에 대해 청구 데이터 중복 생성 차단
+
+### Message 테이블
+
+- `(member_id, billing_id, channel)` 유니크 키 적용
+- 동일 청구 건에 대해 동일 채널 메시지 중복 발송 방지
+
+
+## 효과
+
+- 배치 작업 재실행 시에도
+  - 기존 데이터는 재사용
+  - 중복 INSERT는 DB 레벨에서 차단
+- 애플리케이션 로직 복잡도 증가 없이  
+  DB 제약 조건으로 멱등성 보장
+- Billing → Message 전체 흐름에서  
+  “한 번만 처리됨(Exactly-once)”에 가까운 안정성 확보
+
+
+</details>
+
+
 <br>
 
 ## 핵심 성과
