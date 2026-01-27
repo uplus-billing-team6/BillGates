@@ -1330,7 +1330,61 @@ ORDER BY m.member_id;
 
 
 </details>
+<details>
+<summary><strong>대용량 처리 성능 최적화와 ID 생성 전략</strong></summary>
 
+### 1. 배경 및 목표 (Background)
+
+- **데이터 규모:** 회원 100만 명, 사용 이력 500만 건.
+- **목표:** 월간 정산 배치를 통해 청구서(Billing) 100만 건과 청구 상세(Billing Item) 500만 건을 생성 및 저장.
+- **기술 스택 선정:**
+    - 대용량 데이터의 고속 처리를 최우선으로 고려.
+    - JPA의 **영속성 컨텍스트(Persistence Context) 오버헤드**를 제거하고, Native Query 수준의 **Bulk Insert**를 지원하는 `JdbcTemplate`을 채택.
+
+### 2. 문제 상황: Auto Increment의 딜레마 (The Bottleneck)
+
+초기 설계에서는 `BILLING` 테이블의 PK 전략으로 DB의 `AUTO_INCREMENT`를 사용.
+
+그러나, 부모-자식 관계 데이터 저장 시 치명적인 성능 저하가 발생.
+
+- **구조적 제약:** 자식 테이블(`BILLING_ITEM`)을 저장하려면, 부모 테이블(`BILLING`)이 먼저 저장된 후 생성된 PK(`billing_id`)를 알아야 함.
+- **비효율적인 프로세스:**
+    1. `BILLING` 1건 Insert.
+    2. JDBC `GeneratedKeyHolder`를 통해 DB가 생성한 ID를 반환받음 (Network Round-trip 발생).
+    3. 반환받은 ID를 사용하여 `BILLING_ITEM` N건 Insert.
+- **결과:** DB 레벨의 **Bulk Insert 기능을 전혀 활용할 수 없음.** 데이터 1건마다 'Insert + Key Return'이 반복되어 대용량 처리 시 속도가 현저히 저하됨.
+
+## 3. 실패한 시도: 멀티스레드 병렬 처리 (The Attempt & Failure)
+
+단일 스레드에서의 속도 저하를 만회하고자 Spring Batch의 `TaskExecutor`를 활용한 멀티스레드 방식을 도입.
+
+- **시도:** 10개의 스레드가 동시에 청구서를 생성 및 저장하여 Throughput(처리량)을 높이려 함.
+- **치명적 부작용:**
+    1. **데이터 정합성 이슈:** 배치 종료 후 일부 데이터가 누락되거나 저장되지 않는 현상 발생.
+    2. **운영 복잡도 증가:** 배치 실패 시 가장 중요한 기능인 **'재시작(Restartable)'**을 보장할 수 없음 (병렬 처리로 인해 커서 추적 불가).
+- **판단:** "속도를 위해 데이터의 신뢰성을 포기할 수 없다"는 생각하에 롤백 결정.
+
+## **4. 해결 전략: TSID 도입과 단일 스레드 Bulk Insert (The Solution)**
+
+- Bulk Insert를 가능하게 하려면 **"DB에 넣기 전에 ID를 알아야 한다"**는 전제 조건이 충족되어야 함.
+- 따라서 ID 생성 주체를 DB(Auto Increment)에서 Java 애플리케이션으로 가져오기로 결정. (테이블 Auto Increment 전략 제거)
+
+### **4.1 기술적 의사결정: 왜 UUID가 아닌 TSID인가?**
+
+- ID 생성 방식으로 UUID를 고려했으나, 기존 시스템과의 호환성을 위해 **TSID(Time-Sorted ID)**를 최종 선택
+- **UUID의 문제점:**
+    - 128bit 문자열 구조로, 기존 `BIGINT`(64bit) 타입의 PK 컬럼을 모두 수정해야 함 (스키마 변경 비용 과다).
+    - 무작위 생성으로 인해 인덱스 정렬 성능(Clustered Index)이 저하됨.
+- **TSID의 이점:**
+    - **64bit Long 타입:** 기존 `BIGINT` 컬럼에 그대로 저장 가능 (스키마 변경 불필요).
+    - **시간순 정렬:** 생성 시간 순서대로 정렬되므로 DB 인덱싱 성능이 우수함.
+    - **고유성 보장:** 밀리초 단위 시간 + 노드 ID + 시퀀스로 전역 유일성 보장.
+
+### 4.2. 아키텍처 변화
+
+- **ID 선(先)채번:** Java 레벨에서 `TSID`로 고유 ID를 미리 생성.
+- **Bulk Insert 적용:** ID를 이미 알고 있으므로 `GeneratedKeyHolder`가 불필요해짐. 부모(`BILLING`)와 자식(`BILLING_ITEM`) 모두 `jdbcTemplate.batchUpdate()`를 사용하여 수천 건씩 묶어서 한 번에 저장.
+</details><br>
 
 <br>
 
